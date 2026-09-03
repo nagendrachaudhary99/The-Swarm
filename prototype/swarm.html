@@ -1,0 +1,2018 @@
+<title>The Swarm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,500;1,6..72,300&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root{
+    --abyss:#04060B;
+    --trench:#090E16;
+    --silt:#0F1723;
+    --ridge:#182231;
+    --line:rgba(140,175,205,.14);
+    --foam:#E4EFF4;
+    --fog:#8298AE;
+    --murk:#4E6178;
+    --plankton:#6FF3CE;
+    --bard:#FFC46B;
+    --rogue:#FF4D6D;
+    --mage:#8E7CFF;
+    --cold:#4C86FF;
+    --warm:#FFC46B;
+    --hot:#FF3B5C;
+    --f-disp:"Syne",system-ui,sans-serif;
+    --f-voice:"Newsreader",Georgia,serif;
+    --f-data:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--abyss);
+    color:var(--foam);
+    font-family:var(--f-disp);
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  :focus-visible{outline:2px solid var(--plankton);outline-offset:2px;border-radius:4px}
+
+  .stage{
+    max-width:1180px;margin:0 auto;padding:28px 20px 80px;
+    display:flex;flex-direction:column;gap:34px;
+  }
+
+  /* ---------- lockup ---------- */
+  .lockup{display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center}
+  .eyebrow{
+    font-family:var(--f-data);font-size:10px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--murk);
+  }
+  .wordmark{
+    font-family:var(--f-disp);font-weight:800;letter-spacing:-.03em;
+    font-size:clamp(38px,7vw,62px);line-height:.95;margin:0;
+    background:linear-gradient(178deg,var(--foam) 30%,#7FA8BE);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .tag{
+    font-family:var(--f-voice);font-style:italic;font-weight:300;
+    font-size:clamp(15px,2.2vw,19px);color:var(--fog);max-width:44ch;margin:0;
+    text-wrap:balance;
+  }
+
+  /* ---------- device ---------- */
+  .rig{display:flex;justify-content:center}
+  .device{
+    position:relative;width:min(392px,100%);
+    height:clamp(620px,84vh,790px);
+    border-radius:38px;padding:9px;
+    background:linear-gradient(160deg,#1B2634,#070B11 55%,#141C27);
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(150,200,220,.09),
+               0 0 90px -30px rgba(111,243,206,.22);
+  }
+  .app{
+    position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;
+    box-shadow:inset 0 0 60px -20px rgba(111,243,206,.14),inset 0 0 0 1px rgba(160,210,230,.06);
+    background:var(--abyss);
+    display:flex;flex-direction:column;
+    touch-action:manipulation;user-select:none;
+  }
+  #map{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  .layer{position:absolute;inset:0;pointer-events:none}
+  .layer > *{pointer-events:auto}
+
+  /* ---------- HUD ---------- */
+  .hud{
+    position:absolute;top:0;left:0;right:0;padding:12px 12px 0;
+    display:flex;flex-direction:column;gap:8px;pointer-events:none;z-index:6;
+  }
+  .hud > *{pointer-events:auto}
+  .hudrow{display:flex;gap:7px;align-items:stretch}
+  .chip{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 9px;border-radius:9px;
+    background:rgba(9,14,22,.82);backdrop-filter:blur(9px);
+    border:1px solid var(--line);
+    font-family:var(--f-data);font-size:9.5px;letter-spacing:.1em;
+    color:var(--fog);white-space:nowrap;
+  }
+  .chip b{color:var(--foam);font-weight:700}
+  .chip.cls{border-color:color-mix(in oklab,var(--cc) 45%,transparent);color:var(--cc)}
+  .chip.cls b{color:var(--cc)}
+  .sigil{width:13px;height:13px;flex:none}
+  .grow{flex:1}
+  .icobtn{
+    width:29px;height:29px;border-radius:9px;display:grid;place-items:center;
+    background:rgba(9,14,22,.82);border:1px solid var(--line);color:var(--fog);
+    backdrop-filter:blur(9px);
+  }
+  .icobtn:hover{color:var(--foam);border-color:rgba(140,175,205,.3)}
+
+  .meters{display:flex;gap:7px}
+  .meter{
+    flex:1;background:rgba(9,14,22,.82);border:1px solid var(--line);
+    border-radius:9px;padding:6px 9px 7px;backdrop-filter:blur(9px);
+  }
+  .meter .lab{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-family:var(--f-data);font-size:8.5px;letter-spacing:.16em;color:var(--murk);
+    text-transform:uppercase;margin-bottom:5px;
+  }
+  .meter .lab span{color:var(--foam);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .track{height:3px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden}
+  .fill{height:100%;width:0%;border-radius:2px;transition:width .28s ease}
+  #eFill{background:linear-gradient(90deg,#2E7F9E,#6FF3CE)}
+  #gFill{background:linear-gradient(90deg,#3D5B7A,#BFE9FF,#FFF6D6)}
+
+  .strip{
+    display:flex;gap:6px;align-items:stretch;
+  }
+  .sitem{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:4px;
+    padding:5px 4px;border-radius:8px;
+    background:rgba(9,14,22,.8);border:1px solid var(--line);backdrop-filter:blur(9px);
+    font-family:var(--f-data);font-size:8px;letter-spacing:.1em;color:var(--murk);
+    white-space:nowrap;overflow:hidden;
+  }
+  .sitem b{color:var(--foam);font-weight:700;font-size:9.5px;font-variant-numeric:tabular-nums}
+  .sitem svg{color:var(--bard)}
+  .sitem.act3{border-color:rgba(111,243,206,.34)}
+  .sitem.act3 b{color:var(--plankton)}
+  .sitem.done b,.sitem.done{color:var(--plankton);border-color:rgba(111,243,206,.45)}
+  .sitem .live{
+    width:5px;height:5px;border-radius:50%;background:#5BE58A;flex:none;
+    box-shadow:0 0 7px #5BE58A;animation:livepulse 2s ease-in-out infinite;
+  }
+  @keyframes livepulse{0%,100%{opacity:.45}50%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.sitem .live{animation:none}}
+
+  /* nightly rituals */
+  .ritual{
+    display:flex;align-items:center;gap:11px;padding:11px 0;
+    border-top:1px solid var(--line);
+  }
+  .ritual:first-of-type{border-top:none}
+  .rbox{
+    width:19px;height:19px;border-radius:6px;flex:none;
+    border:1px solid var(--line);display:grid;place-items:center;
+    font-family:var(--f-data);font-size:9px;color:var(--murk);
+  }
+  .ritual.done .rbox{background:rgba(111,243,206,.14);border-color:rgba(111,243,206,.5);color:var(--plankton)}
+  .rmain{flex:1;min-width:0}
+  .rmain h5{margin:0 0 3px;font-size:12px;font-weight:700;letter-spacing:-.01em}
+  .ritual.done .rmain h5{color:var(--plankton)}
+  .rbar{height:2px;border-radius:1px;background:rgba(255,255,255,.08);overflow:hidden}
+  .rbar i{display:block;height:100%;background:var(--plankton);transition:width .4s}
+  .rval{
+    font-family:var(--f-data);font-size:8.5px;color:var(--murk);flex:none;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* dawn report */
+  .dawn{
+    position:absolute;inset:0;z-index:15;overflow-y:auto;
+    background:linear-gradient(178deg,#1A1408,#0A0A10 45%,#04060B);
+    padding:26px 20px 30px;
+    opacity:0;visibility:hidden;transition:opacity .5s,visibility .5s;
+  }
+  .dawn.open{opacity:1;visibility:visible}
+  .dawnsun{
+    width:100%;height:78px;margin-bottom:14px;position:relative;overflow:hidden;
+    border-radius:12px;background:linear-gradient(178deg,#FFB347,#FF6B4A 40%,#2A1A1F 100%);
+  }
+  .dawnsun::after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 50% 118%,rgba(255,241,200,.95),rgba(255,180,90,0) 62%);
+  }
+  .dawn h2{
+    font-family:var(--f-disp);font-weight:800;font-size:24px;letter-spacing:-.03em;
+    margin:0 0 4px;color:var(--foam);
+  }
+  .dawn .sub{
+    font-family:var(--f-voice);font-weight:300;font-size:14px;color:var(--fog);
+    margin:0 0 18px;line-height:1.5;
+  }
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+  .stat{
+    border:1px solid var(--line);border-radius:12px;padding:11px 12px;
+    background:rgba(255,255,255,.02);
+  }
+  .stat b{
+    display:block;font-family:var(--f-data);font-size:20px;font-weight:700;color:var(--foam);
+    font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  }
+  .stat span{
+    font-family:var(--f-data);font-size:8px;letter-spacing:.16em;color:var(--murk);
+    text-transform:uppercase;
+  }
+  .keeper{
+    border:1px solid rgba(255,196,107,.3);border-radius:13px;padding:13px;
+    background:rgba(255,196,107,.06);margin-bottom:14px;
+  }
+  .keeper p{margin:0;font-family:var(--f-voice);font-weight:300;font-size:13.5px;line-height:1.5;color:var(--foam)}
+  .keeper span{
+    display:block;font-family:var(--f-data);font-size:8px;letter-spacing:.16em;
+    color:var(--bard);text-transform:uppercase;margin-bottom:7px;
+  }
+
+  /* ---------- bubbles ---------- */
+  .bubbles{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:hidden}
+  .bub{
+    position:absolute;width:196px;margin-left:-98px;
+    transform:translate(0,0);will-change:transform,opacity;
+    pointer-events:auto;
+  }
+  .bub-in{
+    background:linear-gradient(165deg,rgba(20,32,44,.94),rgba(9,14,22,.94));
+    border:1px solid rgba(111,243,206,.2);
+    border-radius:13px 13px 13px 4px;
+    padding:9px 10px 7px;
+    box-shadow:0 10px 30px -12px rgba(0,0,0,.9),0 0 22px -8px rgba(111,243,206,.35);
+  }
+  .bub.mine .bub-in{border-color:rgba(191,233,255,.34);border-radius:13px 13px 4px 13px}
+  .bub-in{animation:bubIn .6s cubic-bezier(.2,.9,.3,1) both}
+  @keyframes bubIn{
+    from{opacity:0;transform:scale(.86) translateY(8px);filter:blur(8px)}
+    to{opacity:1;transform:none;filter:blur(0)}
+  }
+  @media (prefers-reduced-motion:reduce){.bub-in{animation:none}}
+  .bub p{
+    margin:0 0 7px;font-family:var(--f-voice);font-weight:300;font-size:12.4px;
+    line-height:1.4;color:var(--foam);
+  }
+  .bub .foot{display:flex;align-items:center;gap:6px}
+  .mini{
+    font-family:var(--f-data);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;
+    padding:3px 6px;border-radius:6px;border:1px solid var(--line);color:var(--fog);
+  }
+  .mini:hover{color:var(--foam);border-color:rgba(140,175,205,.34)}
+  .mini.on{color:var(--plankton);border-color:rgba(111,243,206,.45);background:rgba(111,243,206,.08)}
+  .mini.trk:hover{color:var(--rogue);border-color:rgba(255,77,109,.45)}
+  .dist{
+    margin-left:auto;font-family:var(--f-data);font-size:8.5px;color:var(--murk);
+    letter-spacing:.08em;font-variant-numeric:tabular-nums;
+  }
+  .life{height:2px;border-radius:1px;background:rgba(255,255,255,.08);margin-top:7px;overflow:hidden}
+  .life i{display:block;height:100%;background:var(--plankton);opacity:.55}
+
+  /* ---------- dock ---------- */
+  .dock{
+    position:absolute;left:0;right:0;bottom:0;z-index:7;
+    padding:12px 12px 14px;
+    background:linear-gradient(to top,rgba(4,6,11,.96) 45%,rgba(4,6,11,0));
+    display:flex;flex-direction:column;gap:9px;
+  }
+  .hint{
+    font-family:var(--f-data);font-size:9px;letter-spacing:.12em;color:var(--murk);
+    text-transform:uppercase;text-align:center;min-height:11px;
+    transition:color .3s;
+  }
+  .hint.alert{color:var(--hot)}
+  .acts{display:flex;gap:8px;align-items:stretch}
+  .act{
+    flex:1;border-radius:12px;border:1px solid var(--line);
+    background:rgba(15,23,35,.9);backdrop-filter:blur(9px);
+    padding:9px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;
+    transition:transform .12s,border-color .2s,background .2s;
+  }
+  .act:active{transform:scale(.95)}
+  .act:disabled{opacity:.32;cursor:not-allowed}
+  .act svg{width:17px;height:17px}
+  .act span{font-family:var(--f-data);font-size:8px;letter-spacing:.14em}
+  .act.primary{
+    flex:1.55;background:linear-gradient(165deg,rgba(111,243,206,.18),rgba(111,243,206,.04));
+    border-color:rgba(111,243,206,.42);color:var(--plankton);
+  }
+  .act.primary:not(:disabled):hover{background:rgba(111,243,206,.24)}
+  .act.abil{border-color:color-mix(in oklab,var(--cc) 42%,transparent);color:var(--cc)}
+
+  /* ---------- sheet ---------- */
+  .scrim{
+    position:absolute;inset:0;z-index:10;background:rgba(2,4,8,.72);
+    backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .25s,visibility .25s;
+  }
+  .scrim.open{opacity:1;visibility:visible}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;z-index:11;
+    max-height:86%;overflow-y:auto;overscroll-behavior:contain;
+    background:linear-gradient(178deg,#101927,#070B12);
+    border-top:1px solid rgba(111,243,206,.24);
+    border-radius:22px 22px 30px 30px;
+    padding:16px 16px 22px;
+    transform:translateY(102%);transition:transform .34s cubic-bezier(.2,.8,.25,1);
+  }
+  .sheet.open{transform:translateY(0)}
+  .grab{width:34px;height:3px;border-radius:2px;background:rgba(255,255,255,.18);margin:0 auto 13px}
+  .sh-title{
+    font-family:var(--f-data);font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--plankton);margin:0 0 4px;
+  }
+  .sh-lede{
+    font-family:var(--f-voice);font-weight:300;font-size:14px;line-height:1.5;
+    color:var(--fog);margin:0 0 14px;
+  }
+  .sh-lede b{color:var(--foam);font-weight:500;font-style:normal}
+
+  .row{
+    display:flex;gap:11px;align-items:flex-start;padding:11px 0;
+    border-top:1px solid var(--line);
+  }
+  .row:first-of-type{border-top:none}
+  .row h4{margin:0 0 3px;font-size:12.5px;font-weight:700;letter-spacing:-.01em}
+  .row p{margin:0;font-family:var(--f-voice);font-weight:300;font-size:12.4px;line-height:1.45;color:var(--fog)}
+  .row .k{
+    font-family:var(--f-data);font-size:8.5px;letter-spacing:.14em;color:var(--murk);
+    text-transform:uppercase;flex:none;width:52px;padding-top:3px;
+  }
+
+  .classcards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .cc{
+    border:1px solid var(--line);border-radius:12px;padding:11px 8px;text-align:center;
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    background:rgba(255,255,255,.015);transition:border-color .2s,background .2s;
+  }
+  .cc.sel{border-color:color-mix(in oklab,var(--k) 55%,transparent);background:color-mix(in oklab,var(--k) 9%,transparent)}
+  .cc svg{width:22px;height:22px;color:var(--k)}
+  .cc b{font-size:11.5px;letter-spacing:.02em;color:var(--k)}
+  .cc em{font-family:var(--f-data);font-size:8px;letter-spacing:.1em;font-style:normal;color:var(--murk);line-height:1.4}
+
+  .btn{
+    display:block;width:100%;text-align:center;padding:12px;border-radius:12px;
+    font-family:var(--f-data);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+    border:1px solid rgba(111,243,206,.42);color:var(--plankton);
+    background:rgba(111,243,206,.1);margin-top:12px;
+  }
+  .btn:hover{background:rgba(111,243,206,.18)}
+  .btn.ghost{border-color:var(--line);color:var(--fog);background:none}
+  .btn.ghost:hover{color:var(--foam);border-color:rgba(140,175,205,.32)}
+
+  textarea{
+    width:100%;background:rgba(4,6,11,.7);border:1px solid var(--line);border-radius:12px;
+    padding:11px;color:var(--foam);font-family:var(--f-voice);font-weight:300;font-size:14px;
+    line-height:1.5;resize:none;min-height:92px;
+  }
+  textarea:focus{outline:none;border-color:rgba(111,243,206,.45)}
+  .count{
+    font-family:var(--f-data);font-size:8.5px;letter-spacing:.12em;color:var(--murk);
+    text-align:right;margin-top:6px;font-variant-numeric:tabular-nums;
+  }
+
+  /* silhouettes */
+  .crowd{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:4px}
+  .sil{
+    border:1px solid var(--line);border-radius:13px;padding:10px;
+    display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;
+    background:rgba(255,255,255,.015);transition:border-color .2s,transform .12s;
+  }
+  .sil:hover{border-color:rgba(255,77,109,.4)}
+  .sil:active{transform:scale(.97)}
+  .sil .fig{
+    width:46px;height:52px;border-radius:22px 22px 9px 9px;
+    filter:blur(5.5px);opacity:.85;
+  }
+  .sil em{
+    font-family:var(--f-voice);font-weight:300;font-style:italic;font-size:11.5px;
+    color:var(--fog);line-height:1.35;
+  }
+
+  /* bloom calendar */
+  .bloomlist{display:flex;flex-direction:column;gap:7px}
+  .bloomrow{
+    display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+    padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(255,255,255,.015);transition:border-color .2s,background .2s;
+  }
+  .bloomrow.on{
+    border-color:color-mix(in oklab,var(--bc) 58%,transparent);
+    background:color-mix(in oklab,var(--bc) 10%,transparent);
+  }
+  .bloomrow .dot{
+    width:8px;height:8px;border-radius:50%;background:var(--bc);flex:none;
+    box-shadow:0 0 11px var(--bc);
+  }
+  .bmain{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+  .bmain b{font-size:12px;letter-spacing:.01em;color:var(--bc)}
+  .bmain em{
+    font-family:var(--f-voice);font-style:normal;font-weight:300;font-size:12px;
+    color:var(--fog);line-height:1.4;
+  }
+  .bwhen{
+    font-family:var(--f-data);font-size:8px;letter-spacing:.14em;color:var(--murk);
+    flex:none;align-self:flex-start;padding-top:2px;
+  }
+  .bloomrow.on .bwhen{color:var(--bc)}
+
+  /* deep ocean list */
+  .deep{display:flex;flex-direction:column;gap:9px}
+  .deep li{
+    list-style:none;padding:11px 12px;border-radius:12px;
+    border:1px solid rgba(111,243,206,.16);background:rgba(111,243,206,.04);
+    font-family:var(--f-voice);font-weight:300;font-size:12.8px;line-height:1.45;color:var(--foam);
+  }
+  .deep li.locked{filter:blur(4px);opacity:.5;user-select:none}
+  .deeplock{
+    text-align:center;font-family:var(--f-data);font-size:9px;letter-spacing:.18em;
+    color:var(--murk);text-transform:uppercase;margin-top:12px;
+  }
+
+  /* dormant */
+  .dormant{
+    position:absolute;inset:0;z-index:14;background:#03050A;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;padding:30px;text-align:center;
+    opacity:0;visibility:hidden;transition:opacity .4s,visibility .4s;
+  }
+  .dormant.open{opacity:1;visibility:visible}
+  .dormant .big{
+    font-family:var(--f-data);font-weight:700;font-size:clamp(28px,9vw,38px);
+    letter-spacing:.02em;color:var(--foam);font-variant-numeric:tabular-nums;
+  }
+  .dormant h3{
+    font-family:var(--f-disp);font-weight:800;font-size:19px;letter-spacing:-.01em;margin:0;
+    color:var(--foam);
+  }
+  .dormant p{
+    font-family:var(--f-voice);font-weight:300;font-size:13.5px;line-height:1.55;
+    color:var(--murk);margin:0;max-width:30ch;
+  }
+  .broodring{width:96px;height:96px}
+
+  /* toast */
+  .toast{
+    position:absolute;left:12px;right:12px;bottom:96px;z-index:12;
+    padding:10px 13px;border-radius:11px;
+    background:rgba(15,23,35,.96);border:1px solid rgba(111,243,206,.3);
+    backdrop-filter:blur(9px);
+    font-family:var(--f-data);font-size:9.5px;letter-spacing:.1em;color:var(--foam);
+    text-align:center;text-transform:uppercase;
+    opacity:0;transform:translateY(9px);transition:opacity .3s,transform .3s;
+  }
+  .toast.show{opacity:1;transform:translateY(0)}
+
+  /* ---------- build kit ---------- */
+  .kit{display:flex;flex-direction:column;gap:22px;margin-top:14px}
+  .kit-head{display:flex;flex-direction:column;gap:8px;max-width:60ch}
+  .kit-head h2{
+    font-family:var(--f-disp);font-weight:800;font-size:clamp(22px,3.6vw,30px);
+    letter-spacing:-.025em;margin:0;text-wrap:balance;
+  }
+  .kit-head p{
+    font-family:var(--f-voice);font-weight:300;font-size:15px;line-height:1.6;
+    color:var(--fog);margin:0;
+  }
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:14px}
+  .panel{
+    border:1px solid var(--line);border-radius:16px;padding:17px 17px 19px;
+    background:linear-gradient(172deg,rgba(20,30,44,.55),rgba(7,11,18,.55));
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .panel > h3{
+    margin:0;font-family:var(--f-data);font-size:9.5px;letter-spacing:.24em;
+    text-transform:uppercase;color:var(--plankton);
+  }
+  .panel.wide{grid-column:1/-1}
+  .spec{display:flex;flex-direction:column;gap:0}
+  .spec div{
+    display:grid;grid-template-columns:70px 1fr;gap:12px;align-items:baseline;
+    padding:8px 0;border-top:1px solid var(--line);
+  }
+  .spec div:first-child{border-top:none;padding-top:0}
+  .spec dt,.spec .t{
+    font-family:var(--f-data);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--murk);
+  }
+  .spec .v{font-size:12.5px;line-height:1.45;color:var(--foam)}
+  .spec .v small{
+    display:block;font-family:var(--f-voice);font-weight:300;font-size:12.4px;
+    color:var(--fog);margin-top:2px;
+  }
+  .spec .v code{
+    font-family:var(--f-data);font-size:11px;color:var(--plankton);
+    background:rgba(111,243,206,.08);padding:1px 5px;border-radius:4px;
+  }
+  .psy .v i{
+    font-family:var(--f-data);font-style:normal;font-size:10px;letter-spacing:.06em;
+    color:var(--murk);display:block;margin-top:3px;
+  }
+  .psy div{grid-template-columns:82px 1fr}
+  .brakes{
+    border:1px solid rgba(255,196,107,.26);border-radius:13px;padding:15px 16px;
+    background:rgba(255,196,107,.05);display:flex;flex-direction:column;gap:9px;
+  }
+  .brakes h4{
+    margin:0;font-family:var(--f-data);font-size:9px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--bard);
+  }
+  .brakes p{
+    margin:0;font-family:var(--f-voice);font-weight:300;font-size:13px;line-height:1.55;
+    color:var(--fog);
+  }
+  .brakes p b{color:var(--foam);font-weight:500}
+  .safety{display:flex;flex-direction:column;gap:9px;margin:0;padding:0;list-style:none}
+  .safety li{
+    display:flex;gap:9px;font-family:var(--f-voice);font-weight:300;font-size:13px;
+    line-height:1.5;color:var(--fog);
+  }
+  .safety li b{color:var(--foam);font-weight:500;font-style:normal}
+  .safety li::before{
+    content:"";flex:none;width:5px;height:5px;border-radius:50%;
+    background:var(--plankton);margin-top:7px;box-shadow:0 0 8px var(--plankton);
+  }
+  pre{
+    margin:0;overflow-x:auto;padding:13px;border-radius:11px;
+    background:rgba(2,4,8,.7);border:1px solid var(--line);
+    font-family:var(--f-data);font-size:11px;line-height:1.65;color:var(--fog);
+  }
+  pre b{color:var(--plankton);font-weight:400}
+  pre i{color:var(--murk);font-style:normal}
+  .loopwrap{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+  .loopwrap svg{flex:none}
+  .loopnotes{display:flex;flex-direction:column;gap:9px;min-width:230px;flex:1}
+  .loopnotes div{display:grid;grid-template-columns:16px 1fr;gap:9px;align-items:baseline}
+  .loopnotes .n{font-family:var(--f-data);font-size:9px;color:var(--plankton)}
+  .loopnotes p{margin:0;font-family:var(--f-voice);font-weight:300;font-size:12.8px;line-height:1.5;color:var(--fog)}
+  .loopnotes p b{color:var(--foam);font-weight:500}
+
+  footer{
+    text-align:center;font-family:var(--f-data);font-size:9px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--murk);padding-top:6px;
+  }
+
+  @media (max-width:520px){
+    .stage{padding:18px 12px 50px;gap:26px}
+    .device{padding:0;border-radius:0;box-shadow:none;height:min(88vh,760px);width:100%}
+    .app{border-radius:20px}
+    .classcards{grid-template-columns:1fr;}
+    .cc{flex-direction:row;text-align:left;gap:10px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms !important;transition-duration:.06s !important}
+  }
+</style>
+
+<div class="stage">
+  <header class="lockup">
+    <div class="eyebrow">Awake every night &middot; pilot campus</div>
+    <h1 class="wordmark">THE SWARM</h1>
+    <p class="tag">Open it on the walk home. Ping the dark, catch what is still glowing, and try to find who said it &mdash; before the ring pops. A few nights a year it <em>blooms</em>, and the whole campus changes colour.</p>
+  </header>
+
+  <div class="rig">
+    <div class="device">
+      <div class="app" id="app">
+        <canvas id="map"></canvas>
+        <div class="bubbles" id="bubbles"></div>
+
+        <div class="hud">
+          <div class="hudrow">
+            <button class="chip cls" id="clsChip" style="--cc:var(--rogue)">
+              <svg class="sigil" id="clsSigil" viewBox="0 0 24 24"></svg>
+              <b id="clsName">ROGUE</b>
+            </button>
+            <button class="chip" id="emChip"><span id="emTime">09:41:22</span>&nbsp;LEFT</button>
+            <div class="grow"></div>
+            <button class="icobtn" id="deepBtn" title="Deep Ocean">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 15c2 0 2-2 4.5-2s2.5 2 4.5 2 2-2 4.5-2 2.5 2 4.5 2"/><path d="M3 20c2 0 2-2 4.5-2s2.5 2 4.5 2 2-2 4.5-2 2.5 2 4.5 2"/><circle cx="12" cy="6" r="3"/></svg>
+            </button>
+            <button class="icobtn" id="infoBtn" title="How it works">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg>
+            </button>
+          </div>
+          <div class="strip">
+            <button class="sitem" id="streakBtn" title="Streak">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s5 4.2 5 8.6a5 5 0 0 1-10 0C7 8.5 9 6 12 3Z"/></svg>
+              <b id="streakN">6</b><span>NIGHTS</span>
+            </button>
+            <button class="sitem" id="pulseBtn" title="Awake on campus">
+              <span class="live"></span><b id="pulseN">412</b><span>AWAKE</span>
+            </button>
+            <button class="sitem" id="missedBtn" title="Whispers you missed">
+              <b id="missedN">0</b><span>MISSED</span>
+            </button>
+            <button class="sitem act3" id="ritualBtn" title="Tonight's rituals">
+              <b id="ritualN">0/3</b><span>RITUALS</span>
+            </button>
+          </div>
+          <div class="meters">
+            <div class="meter">
+              <div class="lab">Energy <span id="eNum">100</span></div>
+              <div class="track"><i class="fill" id="eFill"></i></div>
+            </div>
+            <div class="meter">
+              <div class="lab"><span id="gTier">TIDEPOOL</span> <span id="gNum">34</span></div>
+              <div class="track"><i class="fill" id="gFill"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dock">
+          <div class="hint" id="hint">tap the dark to walk &middot; sim &times;10</div>
+          <div class="acts">
+            <button class="act primary" id="pingBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M12 6.5a5.5 5.5 0 0 1 5.5 5.5"/><path d="M12 2.5A9.5 9.5 0 0 1 21.5 12"/><path d="M12 17.5A5.5 5.5 0 0 1 6.5 12"/><path d="M12 21.5A9.5 9.5 0 0 1 2.5 12"/></svg>
+              <span>PING &middot;8</span>
+            </button>
+            <button class="act abil" id="abilBtn" style="--cc:var(--rogue)">
+              <svg id="abilIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></svg>
+              <span id="abilName">TRACK</span>
+            </button>
+            <button class="act" id="whisperBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20 11.5c0 3.9-3.6 7-8 7a9.3 9.3 0 0 1-2.7-.4L4 20l1.4-3.6A6.7 6.7 0 0 1 4 11.5c0-3.9 3.6-7 8-7s8 3.1 8 7Z"/></svg>
+              <span>WHISPER</span>
+            </button>
+            <button class="act" id="sporeBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="9" r="3.2"/><path d="M12 12.2V20"/><path d="M8.5 16.5 12 20l3.5-3.5"/></svg>
+              <span>SPORE &middot;15</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="dawn" id="dawn"><div id="dawnBody"></div></div>
+        <div class="toast" id="toast"></div>
+        <div class="scrim" id="scrim"></div>
+        <div class="sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
+
+      </div>
+    </div>
+  </div>
+
+  <section class="kit">
+    <div class="kit-head">
+      <h2>Now build it in Flutter</h2>
+      <p>Everything above is one <code style="font-family:var(--f-data);font-size:13px;color:var(--plankton)">CustomPainter</code> and a state class. Here is the exact free-tier stack, the schema, the safety rules that have to be server-side, and the loop that makes people open it twice an hour.</p>
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <h3>Stack &middot; all free tiers</h3>
+        <div class="spec">
+          <div><span class="t">App</span><span class="v">Flutter 3.x<small>One codebase, iOS + Android + web demo. Zero cost.</small></span></div>
+          <div><span class="t">Sonar</span><span class="v"><code>CustomPainter</code> + <code>Ticker</code><small>The whole map, sweep, rings and glow. No game engine needed.</small></span></div>
+          <div><span class="t">Motion</span><span class="v"><code>flutter_animate</code> + <code>rive</code><small>Rive is free and Flutter-native &mdash; the class sigils and ring-pop.</small></span></div>
+          <div><span class="t">Map</span><span class="v"><code>flutter_map</code> + OSM<small>OpenStreetMap tiles. Free forever, no Google billing key.</small></span></div>
+          <div><span class="t">Backend</span><span class="v">Supabase<small>Postgres + PostGIS + Realtime + .edu magic-link auth + cron, one free project.</small></span></div>
+          <div><span class="t">Push</span><span class="v">Firebase Cloud Messaging<small>Free. This is the emergence siren &mdash; the single most important feature.</small></span></div>
+          <div><span class="t">Design</span><span class="v">Figma + Google Fonts<small>Syne / Newsreader / JetBrains Mono, all free, all in <code>google_fonts</code>.</small></span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Safety is the mechanic</h3>
+        <ul class="safety">
+          <li><b>Coordinates never leave the server.</b> The client asks &ldquo;how far?&rdquo; and gets back a band, not a point. <code style="font-family:var(--f-data);font-size:11px;color:var(--plankton)">ST_DWithin</code> does the work in Postgres.</li>
+          <li><b>The 10-metre floor.</b> Under 10 m the ring pops and returns nothing, forever. There is no zoom level that finds a chair.</li>
+          <li><b>The freeze right.</b> Anyone being tracked is told, and standing still dissolves their signal. Being found is always a choice.</li>
+          <li><b>Mutual consent to reveal.</b> No face-off, no DM, no photo unless both sides tap yes in the same minute.</li>
+          <li><b>24-hour amnesia.</b> Whispers, pings and location rows are deleted on a cron job, not archived.</li>
+          <li><b>.edu gate + rate limits.</b> One verified school, 30 pings/hour, three tracks/day. Scarcity doubles as abuse control.</li>
+        </ul>
+      </div>
+
+      <div class="panel wide">
+        <h3>The loop</h3>
+        <div class="loopwrap">
+          <svg viewBox="0 0 360 340" width="290" height="274" aria-label="Five-stage retention loop diagram">
+            <circle cx="180" cy="165" r="92" fill="none" stroke="rgba(140,175,205,.18)" stroke-width="1" stroke-dasharray="2 6"/>
+            <g fill="#6FF3CE" opacity=".65">
+              <g transform="translate(238.4,95.9) rotate(72)"><path d="M0 -5 L7 0 L0 5 Z"/></g>
+              <g transform="translate(268.4,183.5) rotate(144)"><path d="M0 -5 L7 0 L0 5 Z"/></g>
+              <g transform="translate(180,257) rotate(216)"><path d="M0 -5 L7 0 L0 5 Z"/></g>
+              <g transform="translate(91.6,183.5) rotate(288)"><path d="M0 -5 L7 0 L0 5 Z"/></g>
+              <g transform="translate(121.6,95.9) rotate(0)"><path d="M0 -5 L7 0 L0 5 Z"/></g>
+            </g>
+            <g>
+              <circle cx="180" cy="73" r="23" fill="#0F1723" stroke="rgba(111,243,206,.45)"/>
+              <circle cx="267.5" cy="136.6" r="23" fill="#0F1723" stroke="rgba(111,243,206,.3)"/>
+              <circle cx="234.1" cy="239.4" r="23" fill="#0F1723" stroke="rgba(111,243,206,.3)"/>
+              <circle cx="125.9" cy="239.4" r="23" fill="#0F1723" stroke="rgba(111,243,206,.3)"/>
+              <circle cx="92.5" cy="136.6" r="23" fill="#0F1723" stroke="rgba(111,243,206,.3)"/>
+            </g>
+            <g font-family="JetBrains Mono, monospace" font-size="13" font-weight="700" fill="#6FF3CE" text-anchor="middle">
+              <text x="180" y="78">1</text><text x="267.5" y="141.6">2</text><text x="234.1" y="244.4">3</text>
+              <text x="125.9" y="244.4">4</text><text x="92.5" y="141.6">5</text>
+            </g>
+            <g font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="1.6" fill="#8298AE" text-anchor="middle">
+              <text x="180" y="26">NIGHTLY</text>
+              <text x="301" y="129">PING</text>
+              <text x="255" y="292">REVEAL</text>
+              <text x="105" y="292">GLOW</text>
+              <text x="59" y="129">HUNT</text>
+            </g>
+            <text x="180" y="162" font-family="Syne, sans-serif" font-size="11" font-weight="800" letter-spacing="2" fill="#4E6178" text-anchor="middle">NOTHING</text>
+            <text x="180" y="178" font-family="Syne, sans-serif" font-size="11" font-weight="800" letter-spacing="2" fill="#4E6178" text-anchor="middle">PERSISTS</text>
+          </svg>
+          <div class="loopnotes">
+            <div><span class="n">1</span><p><b>Nightly.</b> Dusk to dawn, every day, so it becomes a habit. Glow resets at sunrise &mdash; nobody carries a reputation into tomorrow.</p></div>
+            <div><span class="n">2</span><p><b>Ping.</b> No feed, no scroll. Energy is finite, so every look costs something and nothing is passive.</p></div>
+            <div><span class="n">3</span><p><b>Reveal.</b> Whispers decay in ~22 seconds. Miss it and it is gone &mdash; that is the FOMO engine, not a notification badge.</p></div>
+            <div><span class="n">4</span><p><b>Glow.</b> Boosts brighten you. Silence dims you back into the dark. Status is visible, earned nightly, and lost nightly.</p></div>
+            <div><span class="n">5</span><p><b>Hunt.</b> The ring gets you to the room and then <em>pops</em>. You look up from your phone at real people. That is the moment they screenshot.</p></div>
+            <div><span class="n">&#9673;</span><p><b>Blooms.</b> Finals, Holi, Diwali, first monsoon, first snow. Six nights a year the palette, particles and rules all change. Daily habit, rare peaks &mdash; the push that says <em>HOLI BLOOM IS LIVE</em> is the growth strategy.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <h3>Why it holds &middot; every mechanic, and what it is doing to you</h3>
+        <div class="spec psy">
+          <div><span class="t">Ping</span><span class="v">Variable-ratio reinforcement<small>You never know what a sweep will catch. The most resistant-to-extinction schedule there is. <i>Skinner, 1957</i></small></span></div>
+          <div><span class="t">22s decay</span><span class="v">Loss aversion<small>A whisper fading in front of you is a loss, and losses land about twice as hard as equivalent gains. <i>Kahneman &amp; Tversky, 1979</i></small></span></div>
+          <div><span class="t">Start at 34</span><span class="v">Endowed progress<small>Nobody starts at zero glow. Handing people a head start on a card they did not earn roughly doubles completion. <i>Nunes &amp; Dr&egrave;ze, 2006</i></small></span></div>
+          <div><span class="t">&ldquo;6 to deep&rdquo;</span><span class="v">Goal gradient<small>The meter names the distance to the next tier, never the tier you are sitting in. Effort accelerates near a visible goal. <i>Hull, 1932; Kivetz, 2006</i></small></span></div>
+          <div><span class="t">Blurred deep</span><span class="v">Information gap<small>You can see the secret exists and not read it. Curiosity is deprivation, not appetite. <i>Loewenstein, 1994</i></small></span></div>
+          <div><span class="t">412 awake</span><span class="v">Social proof<small>A live count of people in the dark with you, right now, on this campus. <i>Cialdini, 1984</i></small></span></div>
+          <div><span class="t">9 metres</span><span class="v">The near-miss<small>The ring pops just short and names the number. Near-misses drive continued play almost as hard as wins. <i>Reid, 1986</i></small></span></div>
+          <div><span class="t">Missed count</span><span class="v">Zeigarnik effect<small>Interrupted things stay in working memory. A hunt that dissolved, a whisper that faded, an open loop you carry out of the app. <i>Zeigarnik, 1927</i></small></span></div>
+          <div><span class="t">Anonymity</span><span class="v">Online disinhibition<small>Strangers disclose faster and deeper without a name attached, and reciprocal disclosure is what actually makes people close. <i>Suler, 2004; Aron, 1997</i></small></span></div>
+          <div><span class="t">Your whisper</span><span class="v">The IKEA effect<small>You value what you made. One posted line converts a lurker into a resident. <i>Norton, Mochon &amp; Ariely, 2012</i></small></span></div>
+          <div><span class="t">Blooms</span><span class="v">Isolation effect<small>Six nights a year that look nothing like the other 359. Distinct items are remembered far out of proportion. <i>von Restorff, 1933</i></small></span></div>
+          <div><span class="t">Dawn report</span><span class="v">Peak-end rule<small>The night ends on your own best line, not an empty feed. People judge an experience almost entirely by its peak and its end. <i>Kahneman et al., 1993</i></small></span></div>
+        </div>
+        <div class="brakes">
+          <h4>The two brakes &mdash; keep these or it burns out in three weeks</h4>
+          <p><b>1. The night ends.</b> Three finishable rituals, then the app tells you it is done and stops asking. Every product that removes the ending gets uninstalled in anger; the ones that keep it get opened for years. Wordle has one puzzle a day for a reason.</p>
+          <p><b>2. The streak has a shield.</b> One missed night is absorbed automatically. A streak should be a memory of a habit, not a hostage &mdash; the moment it punishes people they start resenting the number, then the app, then quit at exactly the moment they were most invested.</p>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <h3>Schema &middot; Supabase + PostGIS</h3>
+        <pre><b>create extension</b> postgis;
+
+<b>create table</b> whispers (
+  id          uuid <b>primary key default</b> gen_random_uuid(),
+  author      uuid <b>references</b> auth.users,          <i>-- never sent to clients</i>
+  body        text <b>check</b> (char_length(body) &lt;= 140),
+  geog        geography(point) <b>not null</b>,           <i>-- never sent to clients</i>
+  klass       text <b>check</b> (klass <b>in</b> ('bard','rogue','mage')),
+  boosts      int  <b>default</b> 0,
+  dies_at     timestamptz <b>default</b> now() + interval '22 seconds'
+);
+
+<i>-- the only geo the phone ever sees: a band, never a point</i>
+<b>create function</b> band(w uuid, me geography) <b>returns</b> text <b>as</b> $$
+  <b>select case</b>
+    <b>when</b> ST_Distance(geog, me) &lt; 10  <b>then</b> 'mirage'   <i>-- ring pops, nothing returned</i>
+    <b>when</b> ST_Distance(geog, me) &lt; 60  <b>then</b> 'hot'
+    <b>when</b> ST_Distance(geog, me) &lt; 180 <b>then</b> 'warm'
+    <b>else</b> 'cold' <b>end</b>
+  <b>from</b> whispers <b>where</b> id = w;
+$$ <b>language</b> sql <b>security definer</b>;
+
+<b>select</b> cron.schedule('reap','* * * * *',
+  $$<b>delete from</b> whispers <b>where</b> dies_at &lt; now()$$);</pre>
+      </div>
+
+      <div class="panel wide">
+        <h3>Ship it in four weeks</h3>
+        <div class="spec">
+          <div><span class="t">Week 1</span><span class="v">The painter<small>Sonar map, sweep, decaying whispers, energy. No backend &mdash; fake data in Dart, exactly like the prototype above. If this is not fun offline, no backend will save it.</small></span></div>
+          <div><span class="t">Week 2</span><span class="v">Supabase + realtime<small>.edu magic link, whispers table, PostGIS bands, the 24-hour reaper cron.</small></span></div>
+          <div><span class="t">Week 3</span><span class="v">The hunt<small>Ring bands, the freeze notification, the 10 m pop, mirage sheet, spore drops. Ship the safety rules in the same PR as the feature.</small></span></div>
+          <div><span class="t">Week 4</span><span class="v">One dorm, one night<small>200 people, a single 24-hour emergence, posters that only say the countdown. Do not launch a campus. Launch a building and let it leak.</small></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>tap the map &middot; press ping &middot; track a whisper &middot; open the bloom calendar</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const rnd = (a,b) => a + Math.random()*(b-a);
+  const pick = a => a[Math.floor(Math.random()*a.length)];
+  const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+  const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- world ---------- */
+  const W = { w: 240, h: 442 };
+  const BUILDINGS = [
+    {n:"MORROW LIBRARY", x:16, y:34, w:86, h:58},
+    {n:"HOLBROOK DINING", x:140, y:26, w:84, h:52},
+    {n:"THE QUAD", x:30, y:118, w:158, h:86, open:true},
+    {n:"PHYS SCI", x:14, y:236, w:72, h:74},
+    {n:"GREER HALL", x:118, y:228, w:100, h:56},
+    {n:"NORTH CART", x:22, y:336, w:66, h:38},
+    {n:"STACKS ANNEX", x:132, y:326, w:80, h:52}
+  ];
+  const PATHS = [
+    [[59,92],[59,118]], [[109,161],[182,52]], [[109,204],[109,228]],
+    [[50,204],[50,236]], [[50,310],[55,336]], [[168,284],[172,326]],
+    [[30,161],[16,161]], [[188,161],[224,161]]
+  ];
+
+  const POOL = [
+    "someone put a full houseplant in the library elevator. it has a name tag. it says GERALD.",
+    "to whoever plays piano in the rec hall at 2am: keep going. genuinely the only thing holding me together.",
+    "i've been pretending to like cold brew for two years. it tastes like a battery. i'm free now.",
+    "the vending machine in phys sci gives two if you press B4 twice. do not tell facilities.",
+    "sat next to my situationship in a 300 person lecture and we both pretended it was fine. it was not fine.",
+    "there is a raccoon behind holbrook that makes better eye contact than anyone i've matched with.",
+    "wrote my whole midterm about a band i made up. got an A-. she called the discography 'evocative'.",
+    "third floor stacks, blue hoodie, you dropped a receipt for 14 energy drinks. worried and impressed.",
+    "confession: i have never once done the reading. four semesters. undefeated.",
+    "someone keeps leaving origami frogs on the quad benches. if you stop i will genuinely spiral.",
+    "the soft serve machine is not broken. they just switch it off at 7. spread the word.",
+    "laughed out loud in silent study and had to fake a coughing fit for a full minute.",
+    "whoever runs the fake campus squirrel account &mdash; your writing is better than my TA's.",
+    "i've been calling my roommate the wrong name since august and now it is far too late.",
+    "green jacket in the 8am: you always hold the door. that's it. that's the whisper.",
+    "genuinely think the north cart barista is a wizard. never asks, always right.",
+    "cried in the stairwell and a stranger handed me a granola bar without a word. legend.",
+    "someone drew a tiny door at the base of the library wall. today it has a doormat.",
+    "same person on the 11pm loop bus every week. we have never spoken. we nod. it's a whole relationship.",
+    "my lab partner named our fruit fly colony after professors. we are graded by their namesakes.",
+    "there's a guy doing tai chi on the quad at sunrise and honestly he is winning college.",
+    "changed my major three times and the only constant is i still cannot find room 214.",
+    "to whoever returned my airpods with a note saying 'be more careful, king' &mdash; i think of you weekly.",
+    "printer on floor 2 prints double. printer on floor 3 prints nothing. choose your fighter.",
+    "someone has been stacking rocks by the creek since first snow. it is up to eleven now.",
+    "i'm the one who put googly eyes on the statue. i regret nothing. they stayed up nine days."
+  ];
+  const DEEP = [
+    "the 4am study room in greer basement is unlocked all week. nobody knows. now eleven of us do.",
+    "there's a group on the phys sci roof for every meteor shower. bring a blanket, they don't ask questions.",
+    "the caf manager will let you take a whole pie at close if you ask nicely and carry it yourself.",
+    "someone maintains a spreadsheet of every professor's real attendance policy. it is 400 rows. it is accurate.",
+    "the tunnel under the quad is real, it is just extremely boring. i checked. you're welcome."
+  ];
+  const BODIES = [
+    "smirking at their phone, badly",
+    "headphones on, refusing to look up",
+    "just flipped their hood up",
+    "typing way too fast for a study night",
+    "laughing at nothing, allegedly",
+    "has not turned a page in nine minutes"
+  ];
+  const MAJORS = ["Marine Bio","Comp Sci","Philosophy","Studio Art","Astrophysics","Linguistics","Civil Eng"];
+  const YEARS = ["'27","'28","'29","'26"];
+
+  const SIGILS = {
+    bard:'<path d="M9 18V6l10-2v12" /><circle cx="6.5" cy="18" r="2.6"/><circle cx="16.5" cy="16" r="2.6"/>',
+    rogue:'<path d="M5 19 19 5"/><path d="M14 5h5v5"/><path d="M5 9V5h4"/><path d="M9.5 14.5 5 19"/>',
+    mage:'<path d="M12 3v3"/><path d="M12 18v3"/><path d="M4.6 7.5 7 9"/><path d="M17 15l2.4 1.5"/><path d="M4.6 16.5 7 15"/><path d="M17 9l2.4-1.5"/><circle cx="12" cy="12" r="3.4"/>'
+  };
+  const CLASSES = {
+    bard:{name:"BARD", color:"var(--bard)", ab:"MEGAPHONE", cost:34,
+      icon:'<path d="M4 10v4h3l5 4V6l-5 4H4Z"/><path d="M16.5 9a4 4 0 0 1 0 6"/><path d="M19 6.5a7.5 7.5 0 0 1 0 11"/>',
+      blurb:"Every whisper on screen burns 60% longer, and yours burn double. Bards keep the night alive."},
+    rogue:{name:"ROGUE", color:"var(--rogue)", ab:"TRACK", cost:34,
+      icon:'<path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><circle cx="12" cy="12" r="3"/>',
+      blurb:"Turn a target's ring into a directional wedge for 60 seconds. You still cannot see inside 10 m."},
+    mage:{name:"MAGE", color:"var(--mage)", ab:"STILL WATER", cost:34,
+      icon:'<path d="M4 15c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2"/><path d="M12 3v6"/><circle cx="12" cy="11" r="1.6"/>',
+      blurb:"Freeze decay for 20 seconds &mdash; nothing fades, nothing is lost &mdash; and cloak your own ring while it holds."}
+  };
+
+  /* ---------- state ---------- */
+  const S = {
+    cls: pick(["bard","rogue","mage"]),
+    energy: 100, glow: 34,
+    you: {x:104, y:196}, dest: null,
+    nodes: [], sweeps: [], spores: [], bursts: [],
+    target: null, hunt: null,
+    megaUntil: 0, stillUntil: 0, wedgeUntil: 0,
+    lastPing: 0, deepUnlocked: false, mirageDone: 0,
+    emEnd: Date.now() + (9*3600 + 41*60 + 22)*1000,
+    t: 0, sporeAnchor: null, shake: 0, flash: 0, bloom: 'nightly',
+    streak: 6, shield: 1, missed: 23, pulse: 412, pulseT: 0,
+    caught: 0, boostsGiven: 0, boostsGot: 0, peakGlow: 34, bestCatch: null,
+    closest: 999, hunts: 0, ritualDone: 0
+  };
+
+  const cv = $("#map"), ctx = cv.getContext("2d");
+  const bubbleLayer = $("#bubbles");
+  let VW = 0, VH = 0, SC = 1, OX = 0, OY = 0;
+
+  function resize(){
+    const r = cv.getBoundingClientRect();
+    VW = r.width; VH = r.height;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cv.width = VW*dpr; cv.height = VH*dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    SC = Math.max(VW/W.w, VH/W.h);
+    OX = (VW - W.w*SC)/2; OY = (VH - W.h*SC)/2;
+  }
+  const sx = x => OX + x*SC, sy = y => OY + y*SC;
+  const wx = px => (px - OX)/SC, wy = py => (py - OY)/SC;
+  const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+
+  /* ---------- nodes ---------- */
+  let nid = 0;
+  function spawn(text, x, y, mine){
+    const n = {
+      id: ++nid, text, x, y, mine: !!mine,
+      revealed:false, life: mine ? 26 : rnd(19,26), age:0, boosted:false,
+      vx: rnd(-.35,.35), vy: rnd(-.35,.35), state:"drift", el:null, nextThink:0
+    };
+    S.nodes.push(n);
+    return n;
+  }
+  function seedNodes(){
+    const texts = POOL.slice().sort(() => Math.random()-.5);
+    for (let i=0;i<20;i++){
+      spawn(texts[i % texts.length], rnd(18, W.w-18), rnd(24, W.h-30), false);
+    }
+  }
+
+
+  /* ---------- blooms ----------
+     The Swarm is awake every night. Blooms are the rare nights — exams,
+     festivals, first snow — when the whole world changes colour and the rules
+     bend. Daily habit, rare peaks. */
+  const BLOOMS = {
+    nightly: {
+      name:"NIGHTLY", when:"every night, dusk to dawn", days:0,
+      accent:"111,243,206", accent2:"191,233,255",
+      ground:["#0B1724","#071019","#04070D","#020408"],
+      part:"plankton", partRGB:"160,225,235",
+      rule:"Whispers burn 22 seconds. Glow resets at dawn.",
+      blurb:"The ordinary dark. Open it on the walk home, catch three things, lose them all."
+    },
+    exam: {
+      name:"EXAM BLOOM", when:"finals week · 7 nights", days:12,
+      accent:"255,179,71", accent2:"255,122,69",
+      ground:["#1C1307","#140D05","#0A0703","#050301"],
+      part:"ember", partRGB:"255,200,140",
+      rule:"Whispers burn 3× longer. Everyone gets Still Water.",
+      blurb:"Seven nights of collective panic. Nothing fades fast because nobody is sleeping anyway."
+    },
+    holi: {
+      name:"HOLI BLOOM", when:"one day, once a year", days:41,
+      accent:"255,79,163", accent2:"124,232,106",
+      ground:["#1D0A1E","#150715","#0A040B","#050205"],
+      part:"pigment", partRGB:"255,120,190",
+      rule:"Every whisper carries pigment. A boost detonates in colour.",
+      blurb:"The only night the dark is not dark. The map is thrown in fistfuls."
+    },
+    diwali: {
+      name:"DIWALI BLOOM", when:"five nights", days:73,
+      accent:"255,211,107", accent2:"255,138,76",
+      ground:["#1B1207","#150E06","#0B0703","#050301"],
+      part:"lantern", partRGB:"255,206,140",
+      rule:"The whole campus glows at maximum. Nobody is dim tonight.",
+      blurb:"Everyone is bright, so status means nothing and people just talk. It is the kindest night of the year."
+    },
+    monsoon: {
+      name:"MONSOON BLOOM", when:"first heavy rain", days:96,
+      accent:"127,168,255", accent2:"183,168,255",
+      ground:["#0A1123","#070C19","#040710","#020409"],
+      part:"rain", partRGB:"170,200,255",
+      rule:"Rain scatters your ring. Hunters lose you twice as often.",
+      blurb:"Nobody outside, everybody online. The best hiding night there is."
+    },
+    snow: {
+      name:"FIRST SNOW", when:"the night it first sticks", days:134,
+      accent:"220,238,255", accent2:"159,198,232",
+      ground:["#0E1824","#0B131E","#070D15","#03060B"],
+      part:"snow", partRGB:"235,246,255",
+      rule:"Everything slows. Whispers drift instead of decaying.",
+      blurb:"It gets called at 2am by whoever is awake first, and the whole campus wakes up for it."
+    }
+  };
+
+  function B(){ return BLOOMS[S.bloom]; }
+  function AC(a){ return `rgba(${B().accent},${a})`; }
+  function AC2(a){ return `rgba(${B().accent2},${a})`; }
+
+  function setBloom(id){
+    S.bloom = id;
+    const b = B();
+    const app = $("#app");
+    app.style.setProperty("--plankton", `rgb(${b.accent})`);
+    app.style.setProperty("--accent2", `rgb(${b.accent2})`);
+    $("#bloomName").textContent = b.name;
+    $("#bloomChip").style.setProperty("--cc", `rgb(${b.accent})`);
+    PARTS.forEach(p => p.reset(true));
+    if (S.booted) toast(b.name + " · " + b.rule);
+  }
+
+  /* ---------- particles ---------- */
+  // One system, six behaviours. This is what makes each bloom feel like a
+  // different planet rather than a re-skin.
+  function makePart(){
+    const p = {};
+    p.reset = function(hard){
+      p.x = Math.random()*W.w;
+      p.y = hard ? Math.random()*W.h : -6;
+      p.r = rnd(.35,1.7);
+      p.a = rnd(.05,.34);
+      p.sp = rnd(.5,2.4);
+      p.ph = Math.random()*7;
+      p.depth = rnd(.25,1);
+      p.sway = rnd(.4,1.6);
+      p.hue = Math.floor(rnd(0,4));
+      p.len = rnd(6,16);
+    };
+    p.reset(true);
+    return p;
+  }
+  const PARTS = Array.from({length:130}, makePart);
+  const PIGMENT = ["255,79,163","124,232,106","255,211,107","120,190,255"];
+
+  function drawParticles(front){
+    const b = B(), t = B().part;
+    PARTS.forEach(p => {
+      if ((p.depth > .68) !== front) return;
+      let x = p.x, y = p.y, a = p.a, r = p.r, col = b.partRGB;
+
+      if (t === "rain" || t === "snow" || t === "lantern" || t === "ember"){
+        const dir = (t === "lantern" || t === "ember") ? -1 : 1;
+        const spd = t === "rain" ? 90 : t === "snow" ? 7 : t === "ember" ? 16 : 9;
+        y = p.y + dir * ((RM ? 0 : S.t) * spd * (.6 + p.depth)) ;
+        y = ((y % (W.h+40)) + (W.h+40)) % (W.h+40) - 20;
+      } else {
+        y = p.y - (RM ? 0 : (S.t*p.sp) % (W.h+40));
+        y = ((y % W.h) + W.h) % W.h;
+      }
+      if (t !== "rain") x = p.x + (RM ? 0 : Math.sin(S.t*.35 + p.ph)*p.sway*(t==="snow"?5:2.4));
+
+      const d = Math.hypot(x-S.you.x, y-S.you.y);
+      const lit = clamp(1 - d/150, 0, 1);
+      const X = sx(x), Y = sy(y);
+
+      if (t === "rain"){
+        ctx.beginPath();
+        ctx.moveTo(X, Y); ctx.lineTo(X - 2, Y + p.len*(.5+p.depth));
+        ctx.strokeStyle = `rgba(${col},${a*.7})`; ctx.lineWidth = .9; ctx.stroke();
+        return;
+      }
+      if (t === "pigment") col = PIGMENT[p.hue];
+      if (t === "lantern" || t === "ember"){
+        const g = ctx.createRadialGradient(X,Y,0,X,Y,r*(t==="lantern"?9:5));
+        g.addColorStop(0, `rgba(${col},${a*1.5})`);
+        g.addColorStop(1, `rgba(${col},0)`);
+        ctx.beginPath(); ctx.arc(X,Y,r*(t==="lantern"?9:5),0,7);
+        ctx.fillStyle = g; ctx.fill();
+      }
+      if (t === "pigment"){
+        const g = ctx.createRadialGradient(X,Y,0,X,Y,r*7);
+        g.addColorStop(0, `rgba(${col},${a*.9})`);
+        g.addColorStop(1, `rgba(${col},0)`);
+        ctx.beginPath(); ctx.arc(X,Y,r*7,0,7); ctx.fillStyle = g; ctx.fill();
+        return;
+      }
+      ctx.beginPath();
+      ctx.arc(X, Y, r*(t==="snow" ? 1.5 : (.7+p.depth*.6)), 0, 7);
+      ctx.fillStyle = `rgba(${col},${a*(.35 + lit*.85)})`;
+      ctx.fill();
+    });
+  }
+
+  /* ---------- ambient life ---------- */
+  // Lit windows. A campus at night is mostly people you cannot see.
+  BUILDINGS.forEach(b => {
+    if (b.open) return;
+    b.win = Array.from({length: Math.max(4, Math.floor(b.w*b.h/240))}, () => ({
+      dx: rnd(.1,.9), dy: rnd(.14,.86), ph: Math.random()*7,
+      on: Math.random() < .58, warm: Math.random() < .3
+    }));
+  });
+
+  const wake = [];      // fading footsteps behind you
+  let wakeClock = 0;
+
+  /* ---------- rendering: canvas ---------- */
+  function drawGround(){
+    const c = {x:sx(S.you.x), y:sy(S.you.y)};
+    const gr = B().ground;
+    const g = ctx.createRadialGradient(c.x, c.y, 8, c.x, c.y, VH*.9);
+    g.addColorStop(0,gr[0]); g.addColorStop(.34,gr[1]);
+    g.addColorStop(.7,gr[2]); g.addColorStop(1,gr[3]);
+    ctx.fillStyle = g; ctx.fillRect(0,0,VW,VH);
+
+    // slow caustics — light on water, three bands at different speeds
+    if (!RM){
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let i=0;i<3;i++){
+        const y = ((S.t*(7+i*4) + i*260) % (VH+320)) - 160;
+        const g2 = ctx.createLinearGradient(0, y-90, 0, y+90);
+        g2.addColorStop(0,"rgba(90,190,220,0)");
+        g2.addColorStop(.5,AC(.020 - i*.004));
+        g2.addColorStop(1,"rgba(90,190,220,0)");
+        ctx.fillStyle = g2; ctx.fillRect(0, y-90, VW, 180);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawGrid(){
+    ctx.strokeStyle = "rgba(120,170,200,.038)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x=0;x<=W.w;x+=30){ ctx.moveTo(sx(x),0); ctx.lineTo(sx(x),VH); }
+    for (let y=0;y<=W.h;y+=30){ ctx.moveTo(0,sy(y)); ctx.lineTo(VW,sy(y)); }
+    ctx.stroke();
+  }
+
+  // Depth soundings: 50/100/150 m rings around you, so distance is always
+  // readable at a glance even when you are not hunting anything.
+  function drawContours(){
+    const X = sx(S.you.x), Y = sy(S.you.y);
+    ctx.save();
+    ctx.font = '500 6.5px "JetBrains Mono", monospace';
+    ctx.textAlign = "left";
+    [50,100,150,200].forEach(m => {
+      const r = m*SC;
+      ctx.beginPath(); ctx.arc(X,Y,r,0,7);
+      ctx.strokeStyle = "rgba(130,185,215,.055)"; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = "rgba(130,185,215,.13)";
+      ctx.fillText(m+"m", X + r + 4, Y - 2);
+    });
+    ctx.restore();
+  }
+
+  function drawPaths(){
+    ctx.strokeStyle = "rgba(120,170,200,.115)"; ctx.lineWidth = 2.5; ctx.lineCap="round";
+    ctx.beginPath();
+    PATHS.forEach(p => { ctx.moveTo(sx(p[0][0]),sy(p[0][1])); ctx.lineTo(sx(p[1][0]),sy(p[1][1])); });
+    ctx.stroke();
+  }
+
+  function drawBuildings(){
+    BUILDINGS.forEach(b => {
+      const cx0 = b.x + b.w/2, cy0 = b.y + b.h/2;
+      const near = clamp(1 - Math.hypot(cx0-S.you.x, cy0-S.you.y)/190, 0, 1);
+      const X = sx(b.x), Y = sy(b.y), Ww = b.w*SC, Hh = b.h*SC;
+
+      ctx.save();
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(X,Y,Ww,Hh,7); else ctx.rect(X,Y,Ww,Hh);
+
+      if (b.open){
+        ctx.setLineDash([4,7]);
+        ctx.strokeStyle = `rgba(120,170,200,${.09 + near*.14})`;
+        ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        const gb = ctx.createLinearGradient(X,Y,X,Y+Hh);
+        gb.addColorStop(0, `rgba(26,41,58,${.52 + near*.28})`);
+        gb.addColorStop(1, `rgba(10,17,26,${.62 + near*.22})`);
+        ctx.fillStyle = gb; ctx.fill();
+        ctx.strokeStyle = `rgba(130,180,210,${.11 + near*.24})`;
+        ctx.lineWidth = 1; ctx.stroke();
+
+        ctx.clip();
+        b.win.forEach(w => {
+          const flick = RM ? 1 : (Math.sin(S.t*.6 + w.ph) > -.94 ? 1 : 0);
+          if (!w.on || !flick) return;
+          const a = (.16 + near*.34) * (w.warm ? 1 : .8);
+          ctx.fillStyle = w.warm ? `rgba(255,206,140,${a})` : `rgba(168,220,240,${a})`;
+          ctx.fillRect(X + w.dx*Ww, Y + w.dy*Hh, 1.5, 1.2);
+        });
+      }
+      ctx.restore();
+
+      ctx.font = '500 7px "JetBrains Mono", monospace';
+      ctx.fillStyle = `rgba(160,195,215,${.24 + near*.42})`;
+      ctx.textAlign = "center";
+      ctx.fillText(b.n, X+Ww/2, Y+Hh/2+2.5);
+    });
+  }
+
+  /* Idle radar arm — real sonar never stops turning. This is what makes the
+     screen feel alive between pings without adding any information. */
+  function drawRadarArm(){
+    if (RM) return;
+    const X = sx(S.you.x), Y = sy(S.you.y);
+    const ang = S.t*.42, reach = Math.max(VW,VH)*1.1;
+    const g = ctx.createRadialGradient(X,Y,0,X,Y,reach);
+    g.addColorStop(0,AC(.055)); g.addColorStop(.55,AC(.022)); g.addColorStop(1,AC(0));
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(X,Y);
+    ctx.arc(X,Y,reach, ang-.62, ang); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(X,Y);
+    ctx.lineTo(X+Math.cos(ang)*reach, Y+Math.sin(ang)*reach);
+    ctx.strokeStyle = AC(.10); ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSpores(){
+    S.spores.forEach(s => {
+      const X = sx(s.x), Y = sy(s.y);
+      const p = (S.t*1.4 + s.ph) % 1;
+      ctx.beginPath(); ctx.arc(X, Y, 4 + p*13, 0, 7);
+      ctx.strokeStyle = `rgba(191,233,255,${(1-p)*.4})`; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(X, Y, 3, 0, 7);
+      ctx.fillStyle = s.bloomed ? "#BFE9FF" : "#5E7E96"; ctx.fill();
+      if (s.bloomed){
+        ctx.beginPath(); ctx.arc(X,Y,6.5,0,7);
+        ctx.strokeStyle = "rgba(191,233,255,.35)"; ctx.lineWidth = .8; ctx.stroke();
+      }
+    });
+  }
+
+  function drawNodes(){
+    S.nodes.forEach(n => {
+      if (n.revealed) return;
+      const fl = .09 + .10*Math.sin(S.t*2.2 + n.id);
+      const X = sx(n.x), Y = sy(n.y);
+      ctx.beginPath(); ctx.arc(X, Y, 1.4, 0, 7);
+      ctx.fillStyle = AC(RM ? .12 : fl); ctx.fill();
+      if (!RM && fl > .16){
+        ctx.beginPath(); ctx.arc(X, Y, 4.5, 0, 7);
+        ctx.fillStyle = AC((fl-.16)*.22); ctx.fill();
+      }
+    });
+  }
+
+  function drawSweeps(){
+    S.sweeps.forEach(s => {
+      const p = s.t / s.dur, r = p * s.max * SC;
+      const a = (1-p) * .6;
+      const X = sx(s.x), Y = sy(s.y);
+      const g = ctx.createRadialGradient(X,Y,Math.max(0,r-26),X,Y,r);
+      g.addColorStop(0,AC(0));
+      g.addColorStop(1,AC(a*.16));
+      ctx.beginPath(); ctx.arc(X,Y,r,0,7); ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); ctx.arc(X, Y, r, 0, 7);
+      ctx.strokeStyle = AC2(a); ctx.lineWidth = 2.2 - p*1.4; ctx.stroke();
+      if (r > 11){
+        ctx.beginPath(); ctx.arc(X, Y, r-11, 0, 7);
+        ctx.strokeStyle = AC(a*.28); ctx.lineWidth = 1; ctx.stroke();
+      }
+    });
+  }
+
+  /* Hairlines from each bubble back to the exact spot the whisper came from.
+     Without them a floating card is decoration; with them it is a reading. */
+  function drawLeaders(){
+    S.nodes.forEach(n => {
+      if (!n.revealed || !n.anchor) return;
+      const X = sx(n.x), Y = sy(n.y);
+      const alpha = (n === S.target ? .5 : .26) * clamp(n.el ? +n.el.style.opacity || 1 : 1, 0, 1);
+      ctx.beginPath();
+      ctx.moveTo(n.anchor.x, n.anchor.y);
+      ctx.lineTo(X, Y);
+      ctx.strokeStyle = n === S.target ? `rgba(255,77,109,${alpha})` : AC(alpha);
+      ctx.lineWidth = .8; ctx.stroke();
+      ctx.beginPath(); ctx.arc(X, Y, 2.6, 0, 7);
+      ctx.strokeStyle = n === S.target ? `rgba(255,77,109,${alpha+.25})` : AC(alpha+.25);
+      ctx.lineWidth = 1; ctx.stroke();
+    });
+  }
+
+  function bandOf(d){
+    if (d < 30) return {c:"#FF3B5C", n:"CRITICAL"};
+    if (d < 80) return {c:"#FF7A45", n:"HOT"};
+    if (d < 180) return {c:"#FFC46B", n:"WARM"};
+    return {c:"#4C86FF", n:"COLD"};
+  }
+
+  function drawHunt(){
+    const tg = S.target; if (!tg) return;
+    const d = dist(S.you, tg);
+    const b = bandOf(d);
+    const r = d * SC;
+    const frozen = tg.state === "frozen";
+    const pulse = (frozen || RM) ? 0 : (Math.sin(S.t * (d<30?9:d<80?5:2.6)) * .5 + .5);
+    const alpha = frozen ? .11 : .30 + pulse*.42;
+    const X = sx(S.you.x), Y = sy(S.you.y);
+
+    ctx.save();
+    if (!frozen){
+      // soft bloom under the ring so the band colour reads at a glance
+      ctx.globalAlpha = alpha*.10;
+      ctx.beginPath(); ctx.arc(X,Y,r,0,7);
+      ctx.strokeStyle = b.c; ctx.lineWidth = 16; ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.setLineDash(frozen ? [1,7] : [9,7]);
+    ctx.lineDashOffset = RM ? 0 : -S.t*22;
+    ctx.beginPath(); ctx.arc(X, Y, r, 0, 7);
+    ctx.strokeStyle = b.c; ctx.globalAlpha = alpha; ctx.lineWidth = frozen ? 1 : 1.8;
+    ctx.stroke();
+    ctx.restore();
+
+    if (S.t < S.wedgeUntil){
+      const ang = Math.atan2(tg.y - S.you.y, tg.x - S.you.x);
+      const R = Math.max(VW,VH);
+      const gg = ctx.createRadialGradient(X,Y,0,X,Y,R);
+      gg.addColorStop(0,"rgba(255,77,109,.22)"); gg.addColorStop(1,"rgba(255,77,109,0)");
+      ctx.beginPath(); ctx.moveTo(X,Y);
+      ctx.arc(X, Y, R, ang-.22, ang+.22); ctx.closePath();
+      ctx.fillStyle = gg; ctx.fill();
+    }
+  }
+
+  function drawWake(){
+    for (let i=0;i<wake.length;i++){
+      const w = wake[i], age = S.t - w.t;
+      if (age > 2.4) continue;
+      const a = (1 - age/2.4) * .3;
+      ctx.beginPath(); ctx.arc(sx(w.x), sy(w.y), 1.6 + age*1.6, 0, 7);
+      ctx.strokeStyle = `rgba(150,225,255,${a*.5})`; ctx.lineWidth = .8; ctx.stroke();
+    }
+  }
+
+  function drawYou(){
+    const X = sx(S.you.x), Y = sy(S.you.y);
+    const gl = S.glow/100;
+    const beat = RM ? 0 : Math.sin(S.t*1.7)*3;
+    const halo = 18 + gl*30 + beat;
+
+    // three stacked glows: bloom, body, core — this is the whole status system
+    const g1 = ctx.createRadialGradient(X,Y,1,X,Y,halo*2.1);
+    g1.addColorStop(0, `rgba(120,210,255,${.10 + gl*.16})`);
+    g1.addColorStop(1, "rgba(120,210,255,0)");
+    ctx.beginPath(); ctx.arc(X,Y,halo*2.1,0,7); ctx.fillStyle = g1; ctx.fill();
+
+    const g2 = ctx.createRadialGradient(X,Y,1,X,Y,halo);
+    g2.addColorStop(0, `rgba(170,235,255,${.34 + gl*.36})`);
+    g2.addColorStop(1, "rgba(150,225,255,0)");
+    ctx.beginPath(); ctx.arc(X,Y,halo,0,7); ctx.fillStyle = g2; ctx.fill();
+
+    if (S.t < S.stillUntil){
+      ctx.save();
+      ctx.setLineDash([3,4]); ctx.lineDashOffset = S.t*10;
+      ctx.beginPath(); ctx.arc(X,Y, halo*.78, 0, 7);
+      ctx.strokeStyle = "rgba(142,124,255,.6)"; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.restore();
+    }
+    if (S.t < S.megaUntil){
+      ctx.beginPath(); ctx.arc(X,Y, halo*.62, 0, 7);
+      ctx.strokeStyle = "rgba(255,196,107,.4)"; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    ctx.beginPath(); ctx.arc(X,Y,4.6,0,7); ctx.fillStyle="#F2FBFF"; ctx.fill();
+    ctx.beginPath(); ctx.arc(X,Y,7.4,0,7);
+    ctx.strokeStyle="rgba(242,251,255,.35)"; ctx.lineWidth=1; ctx.stroke();
+
+    if (S.dest){
+      const p = (S.t*2)%1;
+      ctx.beginPath(); ctx.arc(sx(S.dest.x), sy(S.dest.y), 4 + p*5, 0, 7);
+      ctx.strokeStyle=`rgba(191,233,255,${.5*(1-p)})`; ctx.lineWidth=1; ctx.stroke();
+      ctx.beginPath(); ctx.arc(sx(S.dest.x), sy(S.dest.y), 1.8, 0, 7);
+      ctx.fillStyle="rgba(191,233,255,.6)"; ctx.fill();
+    }
+  }
+
+  function drawBursts(){
+    S.bursts.forEach(b => {
+      const p = b.t/b.dur;
+      b.parts.forEach(pt => {
+        const X = sx(b.x + pt.dx*p*1.6), Y = sy(b.y + pt.dy*p*1.6);
+        ctx.beginPath(); ctx.arc(X,Y, 2.4*(1-p), 0, 7);
+        ctx.fillStyle = `rgba(255,120,145,${(1-p)*.95})`; ctx.fill();
+      });
+      for (let k=0;k<2;k++){
+        const pp = clamp(p*1.4 - k*.18, 0, 1);
+        ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), 8 + pp*54, 0, 7);
+        ctx.strokeStyle = `rgba(255,90,120,${(1-pp)*(k?.22:.55)})`;
+        ctx.lineWidth = 2.2*(1-pp); ctx.stroke();
+      }
+    });
+  }
+
+  // Film grain + vignette. Both are what stop a flat dark screen reading as
+  // an unfinished wireframe.
+  let grainPat = null;
+  (function makeGrain(){
+    const g = document.createElement("canvas");
+    g.width = g.height = 96;
+    const c = g.getContext("2d");
+    const d = c.createImageData(96,96);
+    for (let i=0;i<d.data.length;i+=4){
+      const v = 120 + Math.random()*135;
+      d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255;
+    }
+    c.putImageData(d,0,0);
+    grainPat = ctx.createPattern(g,"repeat");
+  })();
+
+  function drawAtmosphere(){
+    const v = ctx.createRadialGradient(VW/2, VH*.46, Math.min(VW,VH)*.28, VW/2, VH*.46, Math.max(VW,VH)*.78);
+    v.addColorStop(0,"rgba(0,0,0,0)"); v.addColorStop(1,"rgba(0,0,0,.62)");
+    ctx.fillStyle = v; ctx.fillRect(0,0,VW,VH);
+    if (grainPat && !RM){
+      ctx.save();
+      ctx.globalAlpha = .035; ctx.globalCompositeOperation = "overlay";
+      ctx.translate((S.t*40)%96 - 96, (S.t*27)%96 - 96);
+      ctx.fillStyle = grainPat; ctx.fillRect(0,0,VW+96,VH+96);
+      ctx.restore();
+    }
+  }
+
+  function render(){
+    ctx.save();
+    if (S.shake > 0.001){
+      ctx.translate(rnd(-1,1)*S.shake*7, rnd(-1,1)*S.shake*7);
+    }
+    drawGround(); drawGrid(); drawContours(); drawPaths(); drawBuildings();
+    drawParticles(false); drawSpores(); drawNodes(); drawRadarArm(); drawSweeps();
+    drawLeaders(); drawHunt(); drawBursts(); drawWake(); drawYou(); drawParticles(true);
+    ctx.restore();
+    drawAtmosphere();
+    if (S.flash > 0.001){
+      ctx.fillStyle = `rgba(255,140,165,${S.flash*.28})`;
+      ctx.fillRect(0,0,VW,VH);
+    }
+  }
+
+  /* ---------- bubbles (DOM) ---------- */
+  function makeBubble(n){
+    const el = document.createElement("div");
+    el.className = "bub" + (n.mine ? " mine" : "");
+    el.innerHTML =
+      '<div class="bub-in"><p></p><div class="foot">' +
+      '<button class="mini boost">&#9741; boost</button>' +
+      '<button class="mini trk">&#9678; track</button>' +
+      '<span class="dist"></span></div>' +
+      '<div class="life"><i></i></div></div>';
+    el.querySelector("p").innerHTML = n.text;
+    el.querySelector(".boost").addEventListener("click", e => { e.stopPropagation(); boost(n, e.currentTarget); });
+    el.querySelector(".trk").addEventListener("click", e => { e.stopPropagation(); track(n); });
+    bubbleLayer.appendChild(el);
+    n.el = el;
+    n.lifeBar = el.querySelector(".life i");
+    n.distEl = el.querySelector(".dist");
+    if (n.mine) el.querySelector(".trk").remove();
+  }
+
+  function syncBubbles(){
+    S.nodes.forEach(n => {
+      if (!n.revealed) return;
+      if (!n.el) makeBubble(n);
+      const rem = n.life - n.age;
+      const fade = rem < 4 ? rem/4 : 1;
+      const X = clamp(sx(n.x), 100, VW-100), Y = clamp(sy(n.y) - 14, 96, VH-160);
+      n.el.style.transform = `translate(${X}px, ${Y}px)`;
+      n.anchor = {x:X, y:Y + n.el.offsetHeight};
+      n.el.style.opacity = clamp(fade,0,1) * (n === S.target ? 1 : .96);
+      n.lifeBar.style.width = clamp(rem/n.life,0,1)*100 + "%";
+      n.lifeBar.style.background = n === S.target ? "var(--rogue)" : "var(--plankton)";
+      const d = Math.round(dist(S.you,n)/5)*5;
+      n.distEl.textContent = bandOf(dist(S.you,n)).n + " · ≈" + d + "m";
+    });
+  }
+
+  /* ---------- actions ---------- */
+  function toast(msg){
+    const t = $("#toast");
+    t.innerHTML = msg; t.classList.add("show");
+    clearTimeout(t._h);
+    t._h = setTimeout(()=>t.classList.remove("show"), 2600);
+  }
+  function hint(msg, alert){
+    const h = $("#hint");
+    h.innerHTML = msg; h.classList.toggle("alert", !!alert);
+  }
+
+  function ping(){
+    if (S.energy < 8 || S.t - S.lastPing < 1) return;
+    S.energy -= 8; S.lastPing = S.t;
+    S.sweeps.push({x:S.you.x, y:S.you.y, t:0, dur:2.4, max:132, hit:new Set()});
+    hint("sweeping… catch them before they fade");
+  }
+
+  function boost(n, btn){
+    if (n.boosted) return;
+    n.boosted = true;
+    btn.classList.add("on"); btn.innerHTML = "&#9741; boosted";
+    n.life += 4;
+    S.boostsGiven++;
+    S.bestCatch = n.text;          // peak-end: the line you chose is the one you keep
+    addGlow(2.6);
+    toast("&#9741; you brightened someone");
+  }
+
+  function track(n){
+    if (S.target === n){ S.target = null; hint("tracking dropped"); return; }
+    S.target = n; n.nextThink = S.t + 1.2; S.hunts++;
+    hint("tracking · walk toward the ring", false);
+    toast("&#9678; ring locked · they have been told");
+  }
+
+  function whisper(text){
+    const n = spawn(text, S.you.x, S.you.y, true);
+    n.revealed = true;
+    if (S.t < S.megaUntil) n.life *= 2;
+    n.boostQueue = [rnd(2,6), rnd(7,13), rnd(14,20)];
+    toast("your whisper is in the water");
+  }
+
+  function drop(){
+    if (S.energy < 15) return;
+    S.energy -= 15;
+    S.spores.push({x:S.you.x, y:S.you.y, ph:Math.random(), bloomed:false});
+    S.sporeAnchor = {x:S.you.x, y:S.you.y};
+    toast("&#9679; spore dropped · walk away to let it bloom");
+  }
+
+  function ability(){
+    const c = CLASSES[S.cls];
+    if (S.energy < c.cost) return;
+    S.energy -= c.cost;
+    if (S.cls === "bard"){
+      S.megaUntil = S.t + 90;
+      S.nodes.forEach(n => { if (n.revealed) n.life += (n.life - n.age)*.6; });
+      toast("&#9834; megaphone · the night burns longer");
+    } else if (S.cls === "rogue"){
+      if (!S.target){ toast("track a whisper first"); S.energy += c.cost; return; }
+      S.wedgeUntil = S.t + 60;
+      toast("&#9678; wedge open · 60 seconds of direction");
+    } else {
+      S.stillUntil = S.t + 20;
+      toast("&#10052; still water · nothing fades, you are cloaked");
+    }
+  }
+
+  function addGlow(v){
+    const before = S.glow;
+    S.glow = clamp(S.glow + v, 0, 100);
+    S.peakGlow = Math.max(S.peakGlow, S.glow);
+    if (before < 80 && S.glow >= 80 && !S.deepUnlocked){
+      S.deepUnlocked = true;
+      toast("&#9678; DEEP OCEAN UNLOCKED");
+    }
+  }
+
+
+  /* ---------- nightly rituals ----------
+     Three small, finishable things. Goal-gradient: the bar visibly fills, and
+     finishing all three is what protects the streak — so the night has an end,
+     which is the difference between a ritual and a compulsion. */
+  const RITUALS = [
+    {id:"catch", label:"Catch five whispers",            goal:5, get:()=>S.caught,       reward:6},
+    {id:"boost", label:"Brighten three people",          goal:3, get:()=>S.boostsGiven,  reward:6},
+    {id:"close", label:"Get within 30 m of someone",     goal:1, get:()=>S.closest<30?1:0, reward:9}
+  ];
+  const claimed = new Set();
+
+  function checkRituals(){
+    let done = 0;
+    RITUALS.forEach(r => {
+      const v = Math.min(r.get(), r.goal);
+      if (v >= r.goal){
+        done++;
+        if (!claimed.has(r.id)){
+          claimed.add(r.id);
+          addGlow(r.reward);
+          toast("&#10003; " + r.label.toUpperCase());
+        }
+      }
+    });
+    if (done !== S.ritualDone){
+      S.ritualDone = done;
+      if (done === RITUALS.length){
+        S.streak++;
+        toast("&#9788; NIGHT COMPLETE &middot; STREAK " + S.streak);
+      }
+    }
+    $("#ritualN").textContent = done + "/" + RITUALS.length;
+    $("#ritualBtn").classList.toggle("done", done === RITUALS.length);
+  }
+
+  function ritualSheet(){
+    const rows = RITUALS.map(r => {
+      const v = Math.min(r.get(), r.goal), done = v >= r.goal;
+      return `<div class="ritual ${done?'done':''}">
+        <span class="rbox">${done ? "&#10003;" : ""}</span>
+        <span class="rmain">
+          <h5>${r.label}</h5>
+          <span class="rbar"><i style="width:${v/r.goal*100}%"></i></span>
+        </span>
+        <span class="rval">${v}/${r.goal} &middot; +${r.reward}</span>
+      </div>`;
+    }).join("");
+    openSheet(
+      `<p class="sh-title">Tonight&rsquo;s rituals</p>
+       <p class="sh-lede">Three small things. Finish them and the night is <b>complete</b> &mdash;
+        your streak is safe and the app stops asking anything of you. It resets at dawn whether
+        you come back or not.</p>
+       ${rows}
+       <p class="sh-lede" style="margin-top:16px">Streak: <b>${S.streak} nights</b>.
+        You have <b>${S.shield} shield</b>, which covers one missed night automatically. Nobody
+        should have to open an app at 3am to protect a number.</p>
+       <button class="btn ghost" id="cr">Close</button>`);
+    $("#cr").addEventListener("click", closeSheet);
+  }
+
+  function missedSheet(){
+    openSheet(
+      `<p class="sh-title">What you missed</p>
+       <p class="sh-lede"><b>${S.missed}</b> whispers died within 200 metres of you tonight,
+        unheard. They are gone &mdash; not archived, not recoverable, not anywhere.</p>
+       <div class="row"><span class="k">Why</span><div><h4>The sweep is the only way in</h4>
+         <p>Nothing is ever pushed to you. A whisper you did not ping for is a whisper that
+         happened to somebody else.</p></div></div>
+       <div class="row"><span class="k">Note</span><div><h4>This number is not a debt</h4>
+         <p>It resets at dawn with everything else. It is here to tell you the campus is alive,
+         not to make you feel behind.</p></div></div>
+       <button class="btn ghost" id="cm">Close</button>`);
+    $("#cm").addEventListener("click", closeSheet);
+  }
+
+  function pulseSheet(){
+    openSheet(
+      `<p class="sh-title">Campus pulse</p>
+       <p class="sh-lede"><b>${S.pulse}</b> people have this open right now. About
+        <b>${Math.round(S.pulse*0.14)}</b> are within 200 metres of you.</p>
+       <div class="row"><span class="k">Peak</span><div><h4>11:40pm &ndash; 1:20am</h4>
+         <p>Two thirds of a night&rsquo;s whispers land in those hundred minutes. The app is
+         busiest exactly when people are least able to sleep.</p></div></div>
+       <button class="btn ghost" id="cp">Close</button>`);
+    $("#cp").addEventListener("click", closeSheet);
+  }
+
+  function streakSheet(){
+    openSheet(
+      `<p class="sh-title">Your streak</p>
+       <p class="sh-lede"><b>${S.streak} nights.</b> A night counts when you finish the three
+        rituals &mdash; not for opening the app, and not for time spent in it.</p>
+       <div class="row"><span class="k">Shield</span><div><h4>${S.shield} in reserve</h4>
+         <p>One missed night is absorbed automatically. You earn another every ten nights.
+         The streak is a memory of a habit, not a hostage.</p></div></div>
+       <div class="row"><span class="k">Reset</span><div><h4>Everything goes at dawn</h4>
+         <p>Glow, whispers, rituals, your class. Only the streak carries. Tomorrow night
+         everybody starts level again.</p></div></div>
+       <button class="btn ghost" id="cs">Close</button>`);
+    $("#cs").addEventListener("click", closeSheet);
+  }
+
+  /* ---------- dawn report ----------
+     Peak-end: people remember the most intense moment and the ending. So the
+     night ends on your own best line, not on an empty feed. */
+  function dawnReport(){
+    const best = S.bestCatch || "you did not catch anything tonight. the dark was quiet.";
+    const b = B();
+    $("#dawnBody").innerHTML = `
+      <div class="dawnsun"></div>
+      <h2>Dawn.</h2>
+      <p class="sub">The water is empty again. ${S.missed} whispers died out there tonight and
+        every one of them is gone for good.</p>
+      <div class="stats">
+        <div class="stat"><b>${S.caught}</b><span>caught</span></div>
+        <div class="stat"><b>${S.boostsGiven}</b><span>brightened</span></div>
+        <div class="stat"><b>${Math.round(S.peakGlow)}</b><span>peak glow</span></div>
+        <div class="stat"><b>${S.closest > 900 ? "&mdash;" : Math.round(S.closest) + "m"}</b><span>closest approach</span></div>
+      </div>
+      <div class="keeper">
+        <span>the one you kept</span>
+        <p>&ldquo;${best}&rdquo;</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>${S.streak}</b><span>night streak</span></div>
+        <div class="stat"><b>${b.name === "NIGHTLY" ? BLOOMS.exam.days : 0}</b><span>days to next bloom</span></div>
+      </div>
+      <button class="btn" id="dawnClose">Back into the dark</button>
+      <p class="sh-lede" style="text-align:center;margin:14px 0 0;font-size:12.5px">
+        Nothing here carries into tomorrow except the streak. That is the point.</p>`;
+    $("#dawn").classList.add("open");
+    $("#dawnClose").addEventListener("click", () => $("#dawn").classList.remove("open"));
+  }
+
+  /* ---------- sheets ---------- */
+  const scrim = $("#scrim"), sheet = $("#sheet"), body = $("#sheetBody");
+  function openSheet(html){ body.innerHTML = html; sheet.classList.add("open"); scrim.classList.add("open"); }
+  function closeSheet(){ sheet.classList.remove("open"); scrim.classList.remove("open"); }
+  scrim.addEventListener("click", closeSheet);
+
+  function classSheet(){
+    const cards = Object.entries(CLASSES).map(([k,c]) =>
+      `<button class="cc ${k===S.cls?'sel':''}" data-k="${k}" style="--k:${c.color}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${SIGILS[k]}</svg>
+        <b>${c.name}</b><em>${c.ab}</em></button>`).join("");
+    openSheet(
+      `<p class="sh-title">Your class tonight</p>
+       <p class="sh-lede">Classes are dealt at each emergence and last until the brood goes under. You do not pick who you are &mdash; you pick what you do with it.</p>
+       <div class="classcards">${cards}</div>
+       <p class="sh-lede" id="ccBlurb">${CLASSES[S.cls].blurb}</p>
+       <button class="btn ghost" id="closeCc">Close</button>`);
+    body.querySelectorAll(".cc").forEach(b => b.addEventListener("click", () => {
+      setClass(b.dataset.k);
+      body.querySelectorAll(".cc").forEach(x => x.classList.toggle("sel", x.dataset.k === S.cls));
+      $("#ccBlurb").innerHTML = CLASSES[S.cls].blurb;
+    }));
+    $("#closeCc").addEventListener("click", closeSheet);
+  }
+
+
+  function bloomSheet(){
+    const rows = Object.entries(BLOOMS).map(([id,b]) => {
+      const on = id === S.bloom;
+      const when = b.days === 0 ? "tonight" : "in " + b.days + " days";
+      return `<button class="bloomrow ${on?'on':''}" data-b="${id}" style="--bc:rgb(${b.accent})">
+          <span class="dot"></span>
+          <span class="bmain">
+            <b>${b.name}</b>
+            <em>${b.rule}</em>
+          </span>
+          <span class="bwhen">${on ? "LIVE" : when.toUpperCase()}</span>
+        </button>`;
+    }).join("");
+    openSheet(
+      `<p class="sh-title">The bloom calendar</p>
+       <p class="sh-lede">The Swarm is awake <b>every night</b>, dusk to dawn. A few nights a
+        year it blooms &mdash; exams, festivals, first snow &mdash; and the whole world changes
+        colour and bends its own rules. Tap one to walk into it.</p>
+       <div class="bloomlist">${rows}</div>
+       <p class="sh-lede" id="bloomBlurb" style="margin-top:14px">${B().blurb}</p>
+       <button class="btn ghost" id="cb">Close</button>`);
+    body.querySelectorAll(".bloomrow").forEach(el => el.addEventListener("click", () => {
+      setBloom(el.dataset.b);
+      body.querySelectorAll(".bloomrow").forEach(x => x.classList.toggle("on", x.dataset.b === S.bloom));
+      $("#bloomBlurb").innerHTML = B().blurb;
+    }));
+    $("#cb").addEventListener("click", closeSheet);
+  }
+
+  function infoSheet(){
+    openSheet(
+      `<p class="sh-title">How the swarm works</p>
+       <p class="sh-lede">Four rules. Nothing else to learn.</p>
+       <div class="row"><span class="k">01</span><div><h4>Awake every night</h4>
+         <p>Dusk to dawn, every day. Glow resets when the sun comes up, so nobody carries a
+         reputation into tomorrow. A few nights a year it <b>blooms</b> &mdash; finals, Holi,
+         Diwali, the first monsoon, first snow &mdash; and the rules bend.</p></div></div>
+       <div class="row"><span class="k">02</span><div><h4>There is no feed</h4>
+         <p>Press <b>PING</b> and a sonar sweep reveals whispers around you. They decay in about
+         twenty seconds. If you did not catch it, it did not happen.</p></div></div>
+       <div class="row"><span class="k">03</span><div><h4>Glow is earned nightly</h4>
+         <p>Boosts brighten you, silence dims you. Cross 80 and the <b>Deep Ocean</b> opens &mdash;
+         where the actually useful secrets live.</p></div></div>
+       <div class="row"><span class="k">04</span><div><h4>The ring pops</h4>
+         <p>Track a whisper and a ring shows how far, never where. Inside 10 metres it bursts and
+         tells you nothing. Look up. They are in this room. That is as close as the app will ever
+         take you.</p></div></div>
+       <button class="btn ghost" id="ci">Got it</button>`);
+    $("#ci").addEventListener("click", closeSheet);
+  }
+
+  function deepSheet(){
+    const items = DEEP.map((d,i) =>
+      `<li class="${S.deepUnlocked ? "" : "locked"}">${d}</li>`).join("");
+    openSheet(
+      `<p class="sh-title">Deep ocean &middot; glow 80+</p>
+       <p class="sh-lede">${S.deepUnlocked
+          ? "You are bright enough to be down here. These do not decay for an hour."
+          : "You are at <b>" + Math.round(S.glow) + "</b> glow. Boost whispers and post your own to get to 80."}</p>
+       <ul class="deep">${items}</ul>
+       ${S.deepUnlocked ? "" : '<p class="deeplock">&#9679; sealed until you glow</p>'}
+       <button class="btn ghost" id="cd">Close</button>`);
+    $("#cd").addEventListener("click", closeSheet);
+  }
+
+  function whisperSheet(){
+    openSheet(
+      `<p class="sh-title">Drop a whisper</p>
+       <p class="sh-lede">It lands where you are standing and burns out in ${S.t < S.megaUntil ? "52" : "26"} seconds. No name, no handle, no history.</p>
+       <textarea id="wt" maxlength="140" placeholder="say the thing you would only say in the dark…"></textarea>
+       <div class="count"><span id="wc">0</span>/140</div>
+       <button class="btn" id="wsend">Release into the dark</button>
+       <button class="btn ghost" id="wc2">Cancel</button>`);
+    const ta = $("#wt");
+    ta.focus();
+    ta.addEventListener("input", () => $("#wc").textContent = ta.value.length);
+    $("#wsend").addEventListener("click", () => {
+      const v = ta.value.trim();
+      if (!v){ ta.focus(); return; }
+      whisper(v.replace(/[<>]/g,""));
+      closeSheet();
+    });
+    $("#wc2").addEventListener("click", closeSheet);
+  }
+
+  function mirageSheet(tg){
+    const bods = BODIES.slice().sort(()=>Math.random()-.5).slice(0,4);
+    const right = Math.floor(Math.random()*4);
+    const hues = ["#2A3D52","#3A2F4E","#25404A","#43323A"];
+    const cards = bods.map((b,i) =>
+      `<button class="sil" data-i="${i}">
+         <div class="fig" style="background:linear-gradient(160deg,${hues[i]},#0C1420)"></div>
+         <em>${b}</em></button>`).join("");
+    openSheet(
+      `<p class="sh-title">Quantum mirage &middot; ring popped</p>
+       <p class="sh-lede">Nine metres. You got to <b>nine metres</b> and the signal died, and it is not coming back tonight. They are in this room, looking at their phone exactly like you are.</p>
+       <div class="crowd">${cards}</div>
+       <button class="btn" id="spore2">Leave a spore instead &middot; walk away first</button>
+       <button class="btn ghost" id="mclose">Let them stay hidden</button>`);
+    body.querySelectorAll(".sil").forEach(el => el.addEventListener("click", () => {
+      const ok = +el.dataset.i === right;
+      if (ok){
+        const accept = Math.random() < .62;
+        openSheet(accept
+          ? `<p class="sh-title">Face-off &middot; both said yes</p>
+             <p class="sh-lede">You both tapped inside the same minute. This is everything the app will ever reveal, and only because two people agreed to it.</p>
+             <div class="row"><span class="k">Major</span><div><h4>${pick(MAJORS)}</h4><p>${pick(YEARS)} &middot; ${pick(["Greer Hall","off-campus","North Row","Morrow 3F"])}</p></div></div>
+             <div class="row"><span class="k">Then</span><div><h4>The chat opens for 10 minutes</h4><p>No usernames, no photos, no history. When it closes it is deleted. If you want more you have to say so out loud, in the room, like a person.</p></div></div>
+             <button class="btn ghost" id="mclose2">Close</button>`
+          : `<p class="sh-title">They declined</p>
+             <p class="sh-lede">You guessed right, and they said no. That is allowed &mdash; it is the whole point. The lock is permanent for tonight.</p>
+             <button class="btn ghost" id="mclose2">Close</button>`);
+        $("#mclose2").addEventListener("click", closeSheet);
+        addGlow(6);
+      } else {
+        openSheet(
+          `<p class="sh-title">Wrong signal</p>
+           <p class="sh-lede">Not them. By the time you looked up they had gone out the north door, and the ring is gone for good.</p>
+           <button class="btn ghost" id="mclose2">Close</button>`);
+        $("#mclose2").addEventListener("click", closeSheet);
+      }
+    }));
+    $("#spore2").addEventListener("click", () => { drop(); closeSheet(); });
+    $("#mclose").addEventListener("click", closeSheet);
+  }
+
+  /* ---------- class wiring ---------- */
+  function setClass(k){
+    S.cls = k;
+    const c = CLASSES[k];
+    $("#clsChip").style.setProperty("--cc", c.color);
+    $("#abilBtn").style.setProperty("--cc", c.color);
+    $("#clsName").textContent = c.name;
+    $("#clsSigil").innerHTML = SIGILS[k];
+    $("#clsSigil").setAttribute("fill","none");
+    $("#clsSigil").setAttribute("stroke","currentColor");
+    $("#clsSigil").setAttribute("stroke-width","1.7");
+    $("#clsSigil").setAttribute("stroke-linecap","round");
+    $("#abilIcon").innerHTML = c.icon;
+    $("#abilName").textContent = c.ab;
+  }
+
+  /* ---------- loop ---------- */
+  let last = performance.now();
+  function frame(now){
+    const dt = Math.min((now - last)/1000, .05); last = now; S.t += dt;
+
+    // walk
+    if (S.dest){
+      const d = dist(S.you, S.dest);
+      if (d < 1.5){ S.dest = null; }
+      else {
+        const sp = 16*dt;
+        S.you.x += (S.dest.x - S.you.x)/d * Math.min(sp,d);
+        S.you.y += (S.dest.y - S.you.y)/d * Math.min(sp,d);
+      }
+    }
+
+    // energy + glow
+    S.energy = clamp(S.energy + 1.1*dt, 0, 100);
+    S.glow = clamp(S.glow - .16*dt, 0, 100);
+
+    // sweeps
+    S.sweeps = S.sweeps.filter(s => {
+      s.t += dt;
+      const r = (s.t/s.dur) * s.max;
+      S.nodes.forEach(n => {
+        if (!n.revealed && dist(n, s) <= r){
+          n.revealed = true; n.age = 0; S.caught++;
+          if (S.t < S.megaUntil) n.life *= 1.6;
+        }
+      });
+      return s.t < s.dur;
+    });
+
+    // nodes
+    const frozenTime = S.t < S.stillUntil;
+    for (let i = S.nodes.length-1; i>=0; i--){
+      const n = S.nodes[i];
+      n.alive = (n.alive || 0) + dt;
+      // curiosity gap: whispers die out there whether you look or not
+      if (!n.revealed && n.alive > 55){
+        S.missed++; S.nodes.splice(i,1); continue;
+      }
+      if (n.revealed && !frozenTime) n.age += dt;
+      if (n.revealed) S.closest = Math.min(S.closest, dist(S.you, n));
+
+      // mine: incoming boosts
+      if (n.mine && n.boostQueue && n.boostQueue.length && n.age > n.boostQueue[0]){
+        n.boostQueue.shift(); addGlow(4.4); S.boostsGot++;
+        toast("&#9741; someone " + Math.round(rnd(40,260)) + "m away boosted you");
+      }
+
+      // target behaviour
+      if (n === S.target){
+        const d = dist(S.you, n);
+        if (S.t > n.nextThink){
+          n.nextThink = S.t + 1.8;
+          n.state = d < 130 ? (Math.random() < .55 ? "frozen" : "fleeing") : "drift";
+          if (n.state === "frozen") hint("signal dissolving · they have stopped moving");
+          else if (n.state === "fleeing") hint("they are moving away · cut them off", true);
+        }
+        if (n.state === "fleeing"){
+          const a = Math.atan2(n.y - S.you.y, n.x - S.you.x);
+          n.x = clamp(n.x + Math.cos(a)*10*dt, 10, W.w-10);
+          n.y = clamp(n.y + Math.sin(a)*10*dt, 10, W.h-10);
+        } else if (n.state === "drift"){
+          n.x = clamp(n.x + n.vx*dt*2, 10, W.w-10);
+          n.y = clamp(n.y + n.vy*dt*2, 10, W.h-10);
+        }
+        if (d < 10){
+          S.bursts.push({x:n.x, y:n.y, t:0, dur:.9,
+            parts: Array.from({length:14}, () => { const a=Math.random()*7; return {dx:Math.cos(a)*rnd(6,18), dy:Math.sin(a)*rnd(6,18)}; })});
+          S.target = null; S.mirageDone++; S.shake = 1; S.flash = 1;
+          hint("the ring popped · look up");
+          mirageSheet(n);
+        }
+      } else if (n.revealed){
+        n.x += n.vx*dt*.7; n.y += n.vy*dt*.7;
+      }
+
+      if (n.revealed && n.age >= n.life){
+        if (n.el) n.el.remove();
+        if (S.target === n){ S.target = null; hint("signal lost · they let it fade"); }
+        S.nodes.splice(i,1);
+      }
+    }
+
+    // top up the water
+    if (S.nodes.length < 16 && Math.random() < dt*1.3){
+      spawn(pick(POOL), rnd(18,W.w-18), rnd(24,W.h-30), false);
+    }
+
+    // spores bloom
+    if (S.sporeAnchor && dist(S.you, S.sporeAnchor) > 25){
+      const sp = S.spores[S.spores.length-1];
+      if (sp && !sp.bloomed){ sp.bloomed = true; toast("&#9679; your spore bloomed where you stood"); }
+      S.sporeAnchor = null;
+    }
+
+    S.bursts = S.bursts.filter(b => (b.t += dt) < b.dur);
+    S.shake = Math.max(0, S.shake - dt*2.2);
+    S.flash = Math.max(0, S.flash - dt*3.4);
+
+    // footsteps
+    wakeClock += dt;
+    if (S.dest && wakeClock > .07){
+      wakeClock = 0;
+      wake.push({x:S.you.x, y:S.you.y, t:S.t});
+      if (wake.length > 46) wake.shift();
+    }
+
+    render();
+    syncBubbles();
+
+    // hud
+    $("#eNum").textContent = Math.round(S.energy);
+    $("#eFill").style.width = S.energy + "%";
+    $("#gNum").textContent = Math.round(S.glow);
+    $("#gFill").style.width = S.glow + "%";
+    // goal gradient: name the distance to the next tier, not the tier you sit in
+    $("#gTier").textContent = S.glow >= 80
+      ? "DEEP OCEAN"
+      : Math.ceil(80 - S.glow) + " TO DEEP OCEAN";
+
+    S.pulseT += dt;
+    if (S.pulseT > 1.6){
+      S.pulseT = 0;
+      S.pulse = Math.round(clamp(S.pulse + rnd(-4,4.4), 330, 486));
+      $("#pulseN").textContent = S.pulse;
+    }
+    $("#missedN").textContent = S.missed;
+    $("#streakN").textContent = S.streak;
+    checkRituals();
+    $("#pingBtn").disabled = S.energy < 8;
+    $("#abilBtn").disabled = S.energy < CLASSES[S.cls].cost;
+    $("#sporeBtn").disabled = S.energy < 15;
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- countdowns ---------- */
+  function pad(n,l){ return String(n).padStart(l||2,"0"); }
+  setInterval(() => {
+    // dawn is 06:00. the night is the unit, every night.
+    const now = new Date();
+    const dawn = new Date(now);
+    dawn.setHours(6,0,0,0);
+    if (dawn <= now) dawn.setDate(dawn.getDate()+1);
+    let sec = Math.floor((dawn - now)/1000);
+    $("#emTime").textContent = pad(Math.floor(sec/3600)) + ":" + pad(Math.floor(sec/60)%60);
+  }, 1000);
+
+  /* ---------- input ---------- */
+  cv.addEventListener("pointerdown", e => {
+    const r = cv.getBoundingClientRect();
+    S.dest = { x: clamp(wx(e.clientX - r.left), 6, W.w-6), y: clamp(wy(e.clientY - r.top), 6, W.h-6) };
+  });
+  $("#pingBtn").addEventListener("click", ping);
+  $("#abilBtn").addEventListener("click", ability);
+  $("#sporeBtn").addEventListener("click", drop);
+  $("#whisperBtn").addEventListener("click", whisperSheet);
+  $("#clsChip").addEventListener("click", classSheet);
+  $("#infoBtn").addEventListener("click", infoSheet);
+  $("#deepBtn").addEventListener("click", deepSheet);
+  $("#bloomChip").addEventListener("click", bloomSheet);
+  $("#streakBtn").addEventListener("click", streakSheet);
+  $("#pulseBtn").addEventListener("click", pulseSheet);
+  $("#missedBtn").addEventListener("click", missedSheet);
+  $("#ritualBtn").addEventListener("click", ritualSheet);
+  $("#dawnBtn").addEventListener("click", dawnReport);
+  addEventListener("resize", resize);
+
+  /* ---------- boot ---------- */
+  resize();
+  setClass(S.cls);
+  setBloom('nightly');
+  seedNodes();
+  // open with the water already alive
+  S.sweeps.push({x:S.you.x, y:S.you.y, t:1.9, dur:2.4, max:132});
+  S.nodes.slice().sort((a,b)=>dist(S.you,a)-dist(S.you,b)).slice(0,3).forEach(n => {
+    n.revealed = true; n.age = rnd(0,4);
+  });
+  S.booted = true;
+  requestAnimationFrame(frame);
+})();
+</script>

@@ -1,0 +1,921 @@
+<title>Closer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,500;1,6..72,300&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --ink:#04060B; --panel:#0F1723; --raise:#182231; --edge:rgba(140,175,205,.14);
+    --text:#E4EFF4; --soft:#8298AE; --faint:#4E6178;
+    --glow:#6FF3CE; --news:#7FA8FF; --scared:#FFC46B; --help:#FF3B5C; --gold:#FFD36B;
+    --ok:#5BE58A;
+    --disp:"Syne",system-ui,sans-serif;
+    --ui:"Newsreader",Georgia,serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:#020408;color:var(--text);font-family:var(--disp);-webkit-font-smoothing:antialiased}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0}
+  :focus-visible{outline:2px solid var(--glow);outline-offset:2px;border-radius:8px}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 16px 70px;display:flex;flex-direction:column;gap:26px}
+  .head{text-align:center;display:flex;flex-direction:column;gap:9px;align-items:center}
+  .kick{font-family:var(--mono);font-size:10px;letter-spacing:.26em;color:var(--faint);text-transform:uppercase}
+  h1{font-family:var(--disp);font-weight:800;font-size:clamp(40px,8vw,64px);letter-spacing:-.035em;margin:0;line-height:.92;
+    background:linear-gradient(178deg,var(--text) 30%,#7FA8BE);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-family:var(--ui);font-weight:300;font-size:clamp(15px,2.2vw,18px);color:var(--soft);max-width:46ch;margin:0;line-height:1.55;text-wrap:balance}
+  .rig{display:flex;justify-content:center}
+  .phone{width:min(390px,100%);height:clamp(660px,90vh,840px);border-radius:38px;padding:9px;
+    background:linear-gradient(160deg,#1B2634,#070B11 55%,#141C27);
+    box-shadow:0 40px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(150,200,220,.09),0 0 90px -30px rgba(111,243,206,.22)}
+  .app{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;background:var(--ink);
+    display:flex;flex-direction:column;user-select:none;
+    box-shadow:inset 0 0 60px -20px rgba(111,243,206,.14),inset 0 0 0 1px rgba(160,210,230,.06)}
+
+  /* ---- HUD ---- */
+  .hud{position:absolute;top:0;left:0;right:0;z-index:8;padding:11px 11px 0;pointer-events:none;
+    display:flex;flex-direction:column;gap:7px}
+  .hud>*{pointer-events:auto}
+  .hrow{display:flex;gap:6px;align-items:center}
+  .chip{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:9px;
+    background:rgba(9,14,22,.86);backdrop-filter:blur(10px);border:1px solid var(--edge);
+    font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--soft);white-space:nowrap}
+  .chip b{color:var(--text);font-weight:700}
+  .chip.acc{border-color:color-mix(in oklab,var(--c) 45%,transparent);color:var(--c)}
+  .chip.acc b{color:var(--c)}
+  .ib{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;color:var(--soft);
+    background:rgba(9,14,22,.86);border:1px solid var(--edge);backdrop-filter:blur(10px);flex:none}
+  .ib:hover{color:var(--text)}
+  .grow{flex:1}
+  .meter{flex:1;background:rgba(9,14,22,.86);border:1px solid var(--edge);border-radius:9px;
+    padding:5px 9px 6px;backdrop-filter:blur(10px)}
+  .meter .l{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;
+    letter-spacing:.14em;color:var(--faint);margin-bottom:4px}
+  .meter .l b{color:var(--text)}
+  .trk{height:3px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden}
+  .trk i{display:block;height:100%;border-radius:2px;transition:width .3s}
+
+  /* ---- screens ---- */
+  .screen{flex:1;position:relative;overflow:hidden;display:none;flex-direction:column}
+  .screen.on{display:flex}
+  #map{position:absolute;inset:0;width:100%;height:100%}
+  .bubs{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:5}
+  .bub{position:absolute;width:206px;margin-left:-103px;pointer-events:auto;
+    animation:in .5s cubic-bezier(.2,.9,.3,1) both}
+  @keyframes in{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1}}
+  .bin{background:linear-gradient(165deg,rgba(20,32,44,.95),rgba(9,14,22,.95));
+    border:1px solid var(--edge);border-left:2px solid var(--c);border-radius:13px 13px 13px 4px;
+    padding:10px 11px 8px;box-shadow:0 12px 32px -14px #000,0 0 24px -12px color-mix(in oklab,var(--c) 65%,transparent)}
+  .bub.urgent .bin{border-color:rgba(255,59,92,.45);background:linear-gradient(150deg,rgba(45,12,20,.95),rgba(9,14,22,.95))}
+  .btop{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .tag{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.12em;color:var(--c);
+    background:color-mix(in oklab,var(--c) 16%,transparent);padding:3px 6px;border-radius:5px}
+  .dist{font-family:var(--mono);font-size:8.5px;color:var(--faint);margin-left:auto}
+  .bub p{margin:0 0 8px;font-family:var(--ui);font-weight:300;font-size:13px;line-height:1.42}
+  .acts{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+  .mini{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.1em;padding:5px 8px;
+    border-radius:6px;border:1px solid var(--edge);color:var(--soft)}
+  .mini:hover{color:var(--text);border-color:rgba(140,175,205,.35)}
+  .mini.g{color:var(--glow);border-color:rgba(111,243,206,.4);background:rgba(111,243,206,.08)}
+  .mini.r{color:#FF7891;border-color:rgba(255,59,92,.45);background:rgba(255,59,92,.1)}
+  .mini.on{color:var(--ok);border-color:rgba(91,229,138,.5);background:rgba(91,229,138,.1)}
+  .life{height:2px;border-radius:1px;background:rgba(255,255,255,.08);margin-top:7px;overflow:hidden}
+  .life i{display:block;height:100%;background:var(--c);opacity:.6}
+  /* ---- tonight's question ---- */
+  .qbox{position:absolute;left:11px;right:11px;top:78px;z-index:7;
+    background:linear-gradient(160deg,rgba(28,22,10,.96),rgba(9,14,22,.96));
+    border:1px solid rgba(255,211,107,.34);border-radius:14px;padding:11px 12px 10px;
+    box-shadow:0 14px 36px -16px #000,0 0 26px -14px var(--gold)}
+  .qhead{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+  .qtag{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.16em;color:var(--gold)}
+  .qn{font-family:var(--mono);font-size:8px;color:var(--faint);margin-left:auto}
+  .qtext{margin:0 0 9px;font-family:var(--ui);font-weight:300;font-size:14.5px;line-height:1.35;color:var(--text)}
+  .qmine{font-family:var(--ui);font-weight:300;font-style:italic;font-size:12.5px;color:var(--gold);
+    padding:7px 0 2px}
+  .qlist{margin-top:9px;display:flex;flex-direction:column;gap:5px}
+  .qa{font-family:var(--ui);font-weight:300;font-size:12.5px;line-height:1.35;color:var(--soft);
+    padding:6px 9px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid var(--edge)}
+  .qa.me{color:var(--gold);border-color:rgba(255,211,107,.3)}
+  .qa.locked{filter:blur(4.5px);user-select:none;opacity:.55}
+  .qlock{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--gold);
+    text-align:center;margin-top:8px}
+
+  /* ---- polls, reactions, journeys ---- */
+  .poll{margin:0 0 8px;display:flex;flex-direction:column;gap:5px}
+  .opt{position:relative;padding:8px 10px;border-radius:9px;border:1px solid var(--edge);
+    font-family:var(--ui);font-weight:300;font-size:13px;overflow:hidden;text-align:left;width:100%}
+  .opt .fill{position:absolute;inset:0;background:color-mix(in oklab,var(--c) 22%,transparent);
+    width:0;transition:width .5s cubic-bezier(.2,.9,.3,1)}
+  .opt .lbl{position:relative;display:flex;justify-content:space-between;gap:8px}
+  .opt.win{border-color:color-mix(in oklab,var(--c) 55%,transparent)}
+  .opt .pct{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--c)}
+  .rx{display:flex;gap:3px;margin-top:7px;flex-wrap:wrap}
+  .rx button{font-size:13px;padding:3px 6px;border-radius:7px;line-height:1.2;
+    border:1px solid transparent;opacity:.55}
+  .rx button:hover{opacity:1;background:rgba(255,255,255,.05)}
+  .rx button.on{opacity:1;border-color:color-mix(in oklab,var(--c) 45%,transparent);
+    background:color-mix(in oklab,var(--c) 12%,transparent)}
+  .rx .cnt{font-family:var(--mono);font-size:9px;color:var(--soft);margin-left:2px}
+  .hops{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:.1em;margin-top:6px}
+
+  /* ---- composer ---- */
+  .dock{position:absolute;left:0;right:0;bottom:0;z-index:9;padding:9px 11px 12px;
+    background:linear-gradient(to top,rgba(4,6,11,.97) 55%,rgba(4,6,11,0))}
+  .here{display:flex;align-items:center;gap:7px;margin-bottom:8px;padding:7px 10px;border-radius:10px;
+    background:rgba(15,23,35,.9);border:1px solid var(--edge)}
+  .here .pin{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 9px var(--c);flex:none}
+  .here b{font-family:var(--disp);font-size:12px;font-weight:700;letter-spacing:-.01em}
+  .here span{font-family:var(--mono);font-size:8.5px;color:var(--faint);margin-left:auto}
+  .kinds{display:flex;gap:5px;margin-bottom:8px}
+  .kind{flex:1;padding:7px 3px;border-radius:8px;border:1px solid var(--edge);text-align:center;
+    font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.05em;color:var(--faint)}
+  .kind.sel{border-color:var(--c);color:var(--c);background:color-mix(in oklab,var(--c) 12%,transparent)}
+  .crow{display:flex;gap:7px;align-items:center}
+  .crow input{flex:1;background:rgba(4,6,11,.8);border:1px solid var(--edge);border-radius:12px;
+    padding:11px 13px;color:var(--text);font-family:var(--ui);font-weight:300;font-size:14px}
+  .crow input:focus{outline:none;border-color:rgba(111,243,206,.5)}
+  .send{width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;
+    background:rgba(111,243,206,.14);border:1px solid rgba(111,243,206,.45);color:var(--glow)}
+  .send:disabled{opacity:.3}
+
+  /* ---- lists ---- */
+  .list{flex:1;overflow-y:auto;padding:64px 11px 78px}
+  .ch{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:12px;
+    border-radius:13px;border:1px solid var(--edge);margin-bottom:8px;
+    background:linear-gradient(165deg,rgba(20,32,44,.7),rgba(9,14,22,.7))}
+  .ch.in{border-color:color-mix(in oklab,var(--c) 55%,transparent);background:color-mix(in oklab,var(--c) 9%,transparent)}
+  .ch.dark{border-style:dashed;opacity:.75}
+  .chdot{width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 11px var(--c);flex:none}
+  .chm{flex:1;min-width:0}
+  .chm b{display:block;font-family:var(--disp);font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+  .chm span{display:block;font-family:var(--ui);font-weight:300;font-size:12.5px;color:var(--soft);
+    margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .chs{text-align:right;flex:none;font-family:var(--mono);font-size:9px}
+  .chs .cnt{color:var(--c);font-weight:700}
+  .chs .far{color:var(--faint);margin-top:3px}
+  .bonus{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:.1em;margin-top:3px}
+
+  /* ---- circles ---- */
+  .cnew{display:flex;gap:8px;margin-bottom:10px}
+  .cnew button{flex:1;padding:11px;border-radius:11px;border:1px dashed var(--edge);
+    font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--soft)}
+  .cnew button:hover{border-color:rgba(111,243,206,.45);color:var(--glow)}
+  .code{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.22em;color:var(--gold);
+    background:rgba(255,211,107,.1);border:1px solid rgba(255,211,107,.28);
+    padding:3px 7px;border-radius:6px}
+  .alias{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--c);
+    margin-bottom:3px;display:block}
+  .m.them .alias{color:var(--news)}
+  .cform{padding:14px;border-radius:13px;border:1px solid var(--edge);margin-bottom:10px;
+    background:rgba(15,23,35,.7)}
+  .cform label{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.16em;
+    color:var(--faint);margin:0 0 6px}
+  .cform input{width:100%;background:rgba(4,6,11,.8);border:1px solid var(--edge);border-radius:11px;
+    padding:11px 13px;color:var(--text);font-family:var(--ui);font-weight:300;font-size:14px;margin-bottom:10px}
+  .cform input:focus{outline:none;border-color:rgba(111,243,206,.5)}
+  .who2{display:flex;gap:6px;margin-bottom:12px}
+  .who2 button{flex:1;padding:9px 4px;border-radius:9px;border:1px solid var(--edge);
+    font-family:var(--mono);font-size:8px;letter-spacing:.06em;color:var(--faint)}
+  .who2 button.sel{border-color:var(--glow);color:var(--glow);background:rgba(111,243,206,.1)}
+
+  /* ---- thread ---- */
+  .thead{flex:none;padding:11px 12px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:10px}
+  .thead b{font-size:14px;font-weight:600;display:block}
+  .thead span{font-family:var(--mono);font-size:9.5px;color:var(--soft);display:block;margin-top:2px}
+  .msgs{flex:1;overflow-y:auto;padding:13px 11px;display:flex;flex-direction:column;gap:7px}
+  .m{max-width:78%;padding:9px 12px;border-radius:15px;font-family:var(--ui);font-weight:300;
+    font-size:14px;line-height:1.42;animation:in .3s both}
+  .m.me{align-self:flex-end;background:rgba(111,243,206,.16);border:1px solid rgba(111,243,206,.3);border-bottom-right-radius:4px}
+  .m.them{align-self:flex-start;background:rgba(24,34,49,.9);border:1px solid var(--edge);border-bottom-left-radius:4px}
+  .sys{align-self:center;text-align:center;font-family:var(--mono);font-size:9px;color:var(--faint);
+    padding:7px 12px;line-height:1.7;max-width:92%}
+  .sys b{color:var(--glow)}
+  .empty{padding:60px 26px;text-align:center;color:var(--faint);font-family:var(--ui);font-weight:300;
+    font-size:14.5px;line-height:1.7}
+
+  /* ---- tabs ---- */
+  .tabs{position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;
+    border-top:1px solid var(--edge);background:rgba(4,6,11,.96);backdrop-filter:blur(10px)}
+  .tab{flex:1;padding:9px 0 11px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--faint);position:relative}
+  .tab.on{color:var(--text)}
+  .tab.on::before{content:"";position:absolute;top:0;left:28%;right:28%;height:2px;background:var(--glow)}
+  .tab span{font-family:var(--mono);font-size:8px;letter-spacing:.1em}
+  .tab .n{position:absolute;top:4px;right:50%;margin-right:-20px;min-width:14px;height:14px;border-radius:7px;
+    background:var(--help);color:#fff;font-family:var(--mono);font-size:8px;font-weight:700;line-height:14px;padding:0 4px}
+
+  /* ---- sheet ---- */
+  .sheet{position:absolute;inset:0;z-index:30;background:var(--ink);display:flex;flex-direction:column;
+    transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.85,.25,1)}
+  .sheet.on{transform:none}
+  .sbody{flex:1;overflow-y:auto;padding:26px 20px 18px}
+  .sbody h3{font-family:var(--disp);font-weight:800;font-size:25px;letter-spacing:-.03em;margin:0 0 8px}
+  .lede{font-family:var(--ui);font-weight:300;font-size:15px;color:var(--soft);line-height:1.6;margin:0 0 20px}
+  .rule{display:flex;gap:12px;padding:13px 0;border-top:1px solid var(--edge)}
+  .rn{width:23px;height:23px;border-radius:7px;flex:none;display:grid;place-items:center;
+    font-family:var(--mono);font-size:9.5px;font-weight:700;
+    background:rgba(111,243,206,.1);border:1px solid rgba(111,243,206,.3);color:var(--glow)}
+  .rule h4{margin:0 0 4px;font-family:var(--disp);font-size:14px;font-weight:700;letter-spacing:-.01em}
+  .rule p{margin:0;font-family:var(--ui);font-weight:300;font-size:13.5px;color:var(--soft);line-height:1.55}
+  .rule p b{color:var(--text);font-weight:500}
+  .big{margin:18px 0 0;padding:14px;border-radius:13px;background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.3)}
+  .big h4{margin:0 0 5px;font-family:var(--disp);font-size:13.5px;color:var(--help);font-weight:700}
+  .big p{margin:0;font-family:var(--ui);font-weight:300;font-size:13.2px;color:var(--soft);line-height:1.55}
+  .sfoot{flex:none;padding:13px 18px 18px;border-top:1px solid var(--edge)}
+  .cta{width:100%;padding:14px;border-radius:12px;background:rgba(111,243,206,.12);
+    border:1px solid rgba(111,243,206,.45);color:var(--glow);
+    font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase}
+  .blooms{display:flex;flex-direction:column;gap:6px}
+  .bl{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:11px;
+    border:1px solid var(--edge);width:100%;text-align:left}
+  .bl.sel{border-color:color-mix(in oklab,var(--c) 58%,transparent);background:color-mix(in oklab,var(--c) 10%,transparent)}
+  .bl b{font-family:var(--disp);font-size:12px;color:var(--c);font-weight:700}
+  .bl span{display:block;font-family:var(--ui);font-weight:300;font-size:12px;color:var(--soft);margin-top:1px}
+
+  .toast{position:absolute;left:12px;right:12px;bottom:150px;z-index:25;padding:10px 13px;border-radius:11px;
+    background:rgba(15,23,35,.96);border:1px solid rgba(111,243,206,.3);backdrop-filter:blur(9px);
+    font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;text-align:center;
+    opacity:0;transform:translateY(8px);transition:.28s;pointer-events:none}
+  .toast.show{opacity:1;transform:none}
+
+  .why{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .box{border:1px solid var(--edge);border-radius:16px;padding:17px;
+    background:linear-gradient(172deg,rgba(20,30,44,.55),rgba(7,11,18,.55))}
+  .box h3{font-family:var(--disp);font-weight:800;font-size:15px;margin:0 0 7px;letter-spacing:-.02em}
+  .box p{margin:0;font-family:var(--ui);font-weight:300;font-size:13.8px;line-height:1.6;color:var(--soft)}
+  .box .n{font-family:var(--mono);font-size:9.5px;color:var(--glow);letter-spacing:.2em;display:block;margin-bottom:8px}
+  footer{text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--faint)}
+  @media(max-width:520px){.wrap{padding:16px 9px 40px;gap:18px}
+    .phone{padding:0;border-radius:0;box-shadow:none;height:92vh;width:100%}.app{border-radius:18px}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.05s!important}}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div class="kick">anonymous always &middot; one campus &middot; right now</div>
+    <h1>Closer</h1>
+    <p class="sub">The map shows <em>places</em>, never people. Walk into a room and you can talk to whoever else is standing in it &mdash; you'll know how far away they are, and never who they are.</p>
+  </header>
+
+  <div class="rig"><div class="phone"><div class="app" id="app">
+
+    <div class="hud" id="hud">
+      <div class="hrow">
+        <button class="chip acc" id="bloomChip" style="--c:var(--glow)"><b id="bloomName">TONIGHT</b></button>
+        <button class="chip" id="streakChip">🔥&nbsp;<b id="streakN">6</b>&nbsp;NIGHTS</button>
+        <div class="grow"></div>
+        <button class="ib" id="helpBtn" title="How this works">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/></svg>
+        </button>
+      </div>
+      <div class="hrow">
+        <div class="meter"><div class="l"><span>YOUR GLOW</span><b id="glowN">34</b></div>
+          <div class="trk"><i id="glowBar" style="background:linear-gradient(90deg,#2E7F9E,#6FF3CE)"></i></div></div>
+        <div class="meter"><div class="l"><span id="tierLbl">NEARBY</span><b id="nearN">38</b></div>
+          <div class="trk"><i id="nearBar" style="background:linear-gradient(90deg,#3D5B7A,#BFE9FF)"></i></div></div>
+      </div>
+    </div>
+
+    <section class="screen on" id="s-map">
+      <canvas id="map"></canvas>
+      <div class="qbox" id="qbox"></div>
+      <div class="bubs" id="bubs"></div>
+      <div class="dock">
+        <div class="here" id="here"></div>
+        <div class="kinds" id="kinds"></div>
+        <div class="crow">
+          <input id="say" maxlength="180" placeholder="say something to this room…">
+          <button class="send" id="sendBtn" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="s-ch"><div class="list" id="chList"></div></section>
+    <section class="screen" id="s-ci"><div class="list" id="ciList"></div></section>
+    <section class="screen" id="s-rep"><div class="list" id="repList"></div></section>
+
+    <section class="screen" id="s-thread">
+      <div class="thead" id="thead"></div>
+      <div class="msgs" id="msgs"></div>
+      <div class="dock" style="background:var(--ink);border-top:1px solid var(--edge)"><div class="crow">
+        <input id="rep" maxlength="220" placeholder="reply anonymously…">
+        <button class="send" id="repBtn" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+        </button>
+      </div></div>
+    </section>
+
+    <nav class="tabs">
+      <button class="tab on" data-go="map">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="11" opacity=".4"/></svg>
+        <span>AROUND</span></button>
+      <button class="tab" data-go="ch">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 21s-7-5.2-7-10a7 7 0 1 1 14 0c0 4.8-7 10-7 10Z"/><circle cx="12" cy="11" r="2.4"/></svg>
+        <span>ROOMS</span></button>
+      <button class="tab" data-go="ci">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="9" r="3.2"/><circle cx="16" cy="14" r="3.2"/><circle cx="8" cy="16" r="2.6"/></svg>
+        <span>CIRCLES</span></button>
+      <button class="tab" data-go="rep">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-10.6 6.8L4 20l1.7-5.3A7.5 7.5 0 1 1 20 11.5Z"/></svg>
+        <span>INBOX</span><i class="n" id="tn" style="display:none">0</i></button>
+    </nav>
+
+    <div class="sheet" id="bloomSheet"><div class="sbody">
+      <h3>Tonight's weather</h3>
+      <p class="lede">Most nights are ordinary. A few times a year the whole campus changes colour and the rules bend with it.</p>
+      <div class="blooms" id="bloomList"></div>
+    </div><div class="sfoot"><button class="cta" id="bloomClose">Close</button></div></div>
+
+    <div class="sheet on" id="intro"><div class="sbody">
+      <h3>Nobody here has a name.</h3>
+      <p class="lede">Closer shows you what people around you are saying right now. Five rules, then you're in.</p>
+      <div class="rule"><span class="rn">1</span><div><h4>The map shows places, never people</h4>
+        <p>Rooms, gates, the library steps &mdash; those are drawn, named and glowing. <b>People are only ever a distance.</b> There is no dot for a person anywhere in this app.</p></div></div>
+      <div class="rule"><span class="rn">2</span><div><h4>Distance, never direction</h4>
+        <p>Every post says how far away its writer is, rounded to ten metres. You are never told which way, so you can't walk towards anyone. <b>Finding someone isn't blocked &mdash; it's information the app never has.</b></p></div></div>
+      <div class="rule"><span class="rn">3</span><div><h4>Walk into a room to talk in it</h4>
+        <p>Each place on campus is its own channel. You can only post to the room you're actually standing in, and rooms nobody has posted from go <b>dark</b> &mdash; light one up and it's worth triple.</p></div></div>
+      <div class="rule"><span class="rn">4</span><div><h4>Only you can reveal yourself</h4>
+        <p>Tap <b>reveal</b> on your own post and your name appears on that one post. Nobody can ever do it for you, and no amount of walking closer will do it either.</p></div></div>
+      <div class="rule"><span class="rn">5</span><div><h4>Glow is what you give</h4>
+        <p>People brighten posts they like, and that light goes to whoever wrote it. Go quiet and it fades. It resets every dawn, so nobody builds a permanent reputation.</p></div></div>
+      <div class="rule"><span class="rn">6</span><div><h4>Your inbox keeps the same strangers</h4>
+        <p>Reply to anyone and that thread <b>stays</b>. They get a two-word label so you can tell your conversations apart, and you can pick <b>what they call you</b> &mdash; a different name for every person if you want. None of it shows on the map or on a post. Nothing joins them up.</p></div></div>
+      <div class="rule"><span class="rn">7</span><div><h4>Circles: your own anonymous groups</h4>
+        <p>Make a group for anything &mdash; your floor, a subject you hate, the people awake at 3am. Share the four-letter code out loud and whoever you give it to gets in. <b>Inside a circle you get a two-word alias so people can follow what you say &mdash; and it only exists in that circle.</b> The same person is a different stranger in every group.</p></div></div>
+      <div class="big"><h4>If something is wrong</h4>
+        <p>Post it as <b style="color:#E4EFF4">HELP</b>. It reaches the whole campus instead of one room, stays up for half an hour, and everyone can tap <b style="color:#E4EFF4">I'm coming</b> &mdash; so you can watch help move toward you without any of you knowing who the others are.</p></div>
+    </div><div class="sfoot"><button class="cta" id="introGo">I understand &mdash; let me in</button></div></div>
+
+    <div class="sheet" id="renameSheet"><div class="sbody">
+      <h3>How should they know you?</h3>
+      <p class="lede">Only <b id="rnWho">this person</b> sees this, and only inside this one conversation. It never appears on a post, on the map, or in any circle &mdash; and you can use a different name for every person you talk to.</p>
+      <div class="cform">
+        <label>THEY WILL SEE YOU AS</label>
+        <input id="rnIn" maxlength="20" placeholder="Quiet Moth">
+        <button class="cta" id="rnSave">Save</button>
+      </div>
+    </div><div class="sfoot"><button class="cta" id="rnCancel" style="background:none;border-color:var(--edge);color:var(--soft)">Cancel</button></div></div>
+
+    <div class="toast" id="toast"></div>
+  </div></div></div>
+
+  <section class="why">
+    <div class="box"><span class="n">THE UNLOCK</span><h3>Places are public, people are not</h3><p>This is what makes a real map possible. Rooms can be drawn, named and lit up because a room isn't a person. Your location only ever leaves as a number: how far.</p></div>
+    <div class="box"><span class="n">THE GAME</span><h3>Light the dark rooms</h3><p>Every room nobody has posted from tonight is drawn dashed and dim. First person to speak there gets triple glow. It turns your campus into a board you fill in by walking around it.</p></div>
+    <div class="box"><span class="n">THE GAME</span><h3>Carry a post</h3><p>Pick up something you love and carry it to another room. It arrives marked as carried, not written. Good lines travel across campus in people's pockets.</p></div>
+    <div class="box"><span class="n">THE POINT</span><h3>Fear is easier without a name</h3><p>The things people most need to say &mdash; being followed, being harassed, being unwell &mdash; are hardest to say with your name on them. Take the name away and they get said.</p></div>
+  </section>
+  <footer>walk between rooms &middot; light a dark one &middot; carry a line &middot; try HELP</footer>
+</div>
+<script>
+(() => {
+"use strict";
+const $=s=>document.querySelector(s), R=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)], clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc=s=>String(s).replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+
+/* ---------- the campus, as rooms ----------
+   These are PLACES, so they can be drawn, named and lit. A place is not a
+   person, which is the whole reason a real map is safe here. */
+const W={w:240,h:400};
+const ROOMS=[
+  {id:"lib",  n:"Library · 3rd floor", x:52,  y:64,  r:34},
+  {id:"mess", n:"Mess hall",           x:172, y:52,  r:32},
+  {id:"quad", n:"The quad",            x:110, y:158, r:44},
+  {id:"gate", n:"Back gate",           x:206, y:214, r:26},
+  {id:"b",    n:"B-block roof",        x:44,  y:236, r:28},
+  {id:"gnd",  n:"The ground",          x:150, y:300, r:38},
+  {id:"chai", n:"Chai stall",          x:52,  y:340, r:24}
+];
+const KINDS={
+  say:  {label:"SAY",  c:"var(--glow)",   life:70,  hint:"anything on your mind…"},
+  news: {label:"NEWS", c:"var(--news)",   life:260, hint:"something happening here…"},
+  poll: {label:"POLL", c:"var(--scared)", life:420, hint:"question / option / option"},
+  help: {label:"HELP", c:"var(--help)",   life:1800,hint:"what's wrong, right now…"}
+};
+const BLOOMS={
+  tonight:{n:"TONIGHT",  c:"#6FF3CE", g:["#0B1724","#06090F","#020408"], rule:"An ordinary night. Posts last about a minute."},
+  exam:   {n:"EXAM WEEK",c:"#FFB347", g:["#1C1307","#0A0703","#050301"], rule:"Nobody's sleeping. Posts last three times longer."},
+  holi:   {n:"HOLI",     c:"#FF4FA3", g:["#1D0A1E","#0A040B","#050205"], rule:"Every brighten explodes in colour and is worth double."},
+  diwali: {n:"DIWALI",   c:"#FFD36B", g:["#1B1207","#0B0703","#050301"], rule:"Everyone glows at maximum. Status switches off for a night."},
+  rain:   {n:"MONSOON",  c:"#7FA8FF", g:["#0A1123","#040710","#020409"], rule:"Nobody outside, everybody online. Rooms fill up fast."}
+};
+/* One question a night, for the whole campus. Everyone answers the same
+   thing, so for one night there is something everybody has in common. */
+const QUESTIONS=[
+  "what's the worst thing you've ever eaten on this campus?",
+  "what would you do tomorrow if nobody here knew your name?",
+  "what's the kindest thing a stranger here has done for you?",
+  "which room on campus has the best 2am energy?",
+  "what are you pretending to be fine about?"
+];
+const ANSWERS=[
+  "the mess sambar on a wednesday. i still think about it.",
+  "sleep. genuinely just sleep.",
+  "someone held the door and said 'you got this'. i cried a bit.",
+  "b-block roof, obviously",
+  "everything, constantly, at all times",
+  "the samosa that fought back",
+  "i'd sing in the corridor. badly. loudly."
+];
+const REACTS=["😭","💀","🔥","🫂","👀","😂"];
+
+/* Circles: anonymous groups. Inside one you keep a stable two-word alias so a
+   conversation can actually be followed — but the alias exists ONLY in that
+   circle. The same person is a different stranger in every group they join,
+   and nothing links the two. */
+const ADJ=["Quiet","Loud","Tired","Restless","Half-asleep","Stubborn","Gentle","Feral","Distant","Patient"];
+const NOUN=["Moth","Owl","Kite","Fox","Heron","Ember","Wren","Comet","Otter","Sparrow"];
+const aliasFor=(cid,n)=>`${ADJ[(cid.charCodeAt(0)+n*7)%ADJ.length]} ${NOUN[(cid.charCodeAt(1)+n*3)%NOUN.length]}`;
+const newCode=()=>Array.from({length:4},()=>"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random()*32)]).join("");
+const SEED_CIRCLES=[
+  {id:"c1",name:"3am club",code:"K7QM",members:23,joined:false,dawn:false,
+   msgs:[{n:2,t:"anyone else just fully awake for no reason"},{n:5,t:"i have an 8am. i am not sleeping. this is my life now."}]},
+  {id:"c2",name:"thermo is fake",code:"P4WZ",members:61,joined:false,dawn:false,
+   msgs:[{n:1,t:"if entropy always increases why is my room still this messy"},{n:4,t:"genuinely who approved that question paper"}]},
+  {id:"c3",name:"b-block floor 3",code:"M9XT",members:14,joined:true,dawn:false,
+   msgs:[{n:3,t:"whose alarm has been going for 20 minutes"},{n:6,t:"not mine but i also want it to stop"}]}
+];
+
+const SEED=[
+  ["say","i have four hours of work and about two hours of will to live"],
+  ["news","water's back in b-block, pass it on"],
+  ["say","whoever plays guitar up here at night — please keep going"],
+  ["poll","mess food today / edible / a crime against people"],
+  ["news","canteen open till 1am during exams apparently"],
+  ["say","said hi to someone i thought i knew. i did not know them."],
+  ["help","group outside the back gate shouting. i don't want to walk past alone"],
+  ["news","lost a black notebook near the ground, it has all my notes"],
+  ["say","the chai guy remembers everyone's order and it's the best thing here"],
+  ["poll","is the library really open 24h / yes, i live there / myth"]
+];
+const REPLY=["i'm near there, stay put","honestly same","walking that way now","you're not imagining it, i saw them too",
+  "stay on the lit path","this made me laugh in a silent room","i've got you","yeah it's real, i checked"];
+
+const S={t:0,me:{x:110,y:158},posts:[],chats:[],open:null,kind:"say",
+  glow:34,streak:6,near:38,bloom:"tonight",room:null,carry:null,lit:new Set(["quad"]),
+  q:{text:pick(QUESTIONS),answers:[],count:142,mine:null},
+  floats:[], typing:0, circles:[], circle:null, cmode:"list", cwho:"code"};
+let pid=0;
+
+const B=()=>BLOOMS[S.bloom];
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const roomAt=p=>ROOMS.find(r=>dist(p,r)<r.r)||null;
+const dLab=m=>`${Math.max(10,Math.round(m/10)*10)}m away`;
+
+function post(kind,body,mine,room){
+  const k=KINDS[kind], mult=S.bloom==="exam"?3:1;
+  const p={id:++pid,kind,body,mine:!!mine,room:room||(S.room&&S.room.id)||"quad",
+    born:S.t,life:k.life*mult*(mine?1:R(.55,1)),
+    metres:mine?0:Math.round(R(15,kind==="help"?600:190)),
+    coming:0,iam:false,revealed:false,bright:0,mybright:false,carried:false,
+    hops:0, react:{}, myreact:null, poll:null, votes:[0,0], myvote:null};
+  if(kind==="poll"){
+    const bits=body.split("/").map(x=>x.trim()).filter(Boolean);
+    if(bits.length>=3){p.poll={q:bits[0],a:bits[1],b:bits[2]};
+      p.votes=[Math.floor(R(2,26)),Math.floor(R(2,26))];}
+  }
+  S.posts.unshift(p); return p;
+}
+
+/* ---------- map: rooms are drawn, people never are ---------- */
+let cv,ctx,VW,VH,SC,OX,OY;
+function size(){cv=$("#map");ctx=cv.getContext("2d");const r=cv.getBoundingClientRect();
+  VW=r.width;VH=r.height;const d=Math.min(devicePixelRatio||1,2);
+  cv.width=VW*d;cv.height=VH*d;ctx.setTransform(d,0,0,d,0,0);
+  SC=Math.max(VW/W.w,VH/W.h);OX=(VW-W.w*SC)/2;OY=(VH-W.h*SC)/2;}
+const sx=x=>OX+x*SC, sy=y=>OY+y*SC;
+
+function draw(){
+  const b=B(), cx=sx(S.me.x), cy=sy(S.me.y);
+  const g=ctx.createRadialGradient(cx,cy,6,cx,cy,VH*.95);
+  g.addColorStop(0,b.g[0]);g.addColorStop(.5,b.g[1]);g.addColorStop(1,b.g[2]);
+  ctx.fillStyle=g;ctx.fillRect(0,0,VW,VH);
+
+  // range rings — the only spatial language this app speaks
+  [60,160,320].forEach(m=>{
+    ctx.beginPath();ctx.arc(cx,cy,m*SC,0,7);
+    ctx.strokeStyle="rgba(255,255,255,.05)";ctx.lineWidth=1;ctx.stroke();
+    ctx.font='500 6.5px "JetBrains Mono",monospace';ctx.fillStyle="rgba(255,255,255,.13)";
+    ctx.textAlign="left";ctx.fillText(m+"m",cx+m*SC+3,cy-3);});
+
+  ROOMS.forEach(r=>{
+    const X=sx(r.x),Y=sy(r.y),RR=r.r*SC, lit=S.lit.has(r.id), inside=S.room&&S.room.id===r.id;
+    const live=S.posts.filter(p=>p.room===r.id).length;
+    const rg=ctx.createRadialGradient(X,Y,2,X,Y,RR);
+    const col=lit?b.c:"#5E7E96";
+    rg.addColorStop(0,`${col}${inside?"40":lit?"26":"10"}`);
+    rg.addColorStop(1,`${col}00`);
+    ctx.beginPath();ctx.arc(X,Y,RR,0,7);ctx.fillStyle=rg;ctx.fill();
+    ctx.beginPath();ctx.arc(X,Y,RR,0,7);
+    ctx.setLineDash(lit?[]:[3,5]);
+    ctx.strokeStyle=inside?b.c:lit?`${col}66`:"rgba(140,175,205,.22)";
+    ctx.lineWidth=inside?1.6:1;ctx.stroke();ctx.setLineDash([]);
+    ctx.font=`${inside?"700":"500"} 7.5px "JetBrains Mono",monospace`;
+    ctx.fillStyle=inside?b.c:lit?"rgba(200,230,240,.6)":"rgba(160,195,215,.35)";
+    ctx.textAlign="center";ctx.fillText(r.n.toUpperCase(),X,Y-3);
+    ctx.font='500 6.5px "JetBrains Mono",monospace';
+    ctx.fillStyle=lit?"rgba(200,230,240,.4)":"rgba(255,211,107,.55)";
+    ctx.fillText(lit?`${live} live`:"DARK · ×3",X,Y+8);
+  });
+
+  if(!RM){const p=(S.t*.4)%1;ctx.beginPath();ctx.arc(cx,cy,p*330*SC,0,7);
+    ctx.strokeStyle=`${b.c}${Math.round((1-p)*70).toString(16).padStart(2,"0")}`;
+    ctx.lineWidth=1.4;ctx.stroke();}
+
+  const halo=18+(S.glow/100)*22+(RM?0:Math.sin(S.t*1.7)*2.5);
+  const yg=ctx.createRadialGradient(cx,cy,1,cx,cy,halo);
+  yg.addColorStop(0,"rgba(170,235,255,.55)");yg.addColorStop(1,"rgba(150,225,255,0)");
+  ctx.beginPath();ctx.arc(cx,cy,halo,0,7);ctx.fillStyle=yg;ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,5,0,7);ctx.fillStyle="#F2FBFF";ctx.fill();
+
+  S.floats.forEach(f=>{
+    const a=(S.t-f.t)/f.d;
+    ctx.globalAlpha=Math.max(0,1-a);
+    ctx.font='20px system-ui';ctx.textAlign="center";
+    ctx.fillText(f.e,f.x+f.dx*a,f.y-a*160);
+    ctx.globalAlpha=1;});
+
+  const v=ctx.createRadialGradient(VW/2,VH*.45,Math.min(VW,VH)*.3,VW/2,VH*.45,Math.max(VW,VH)*.8);
+  v.addColorStop(0,"rgba(0,0,0,0)");v.addColorStop(1,"rgba(0,0,0,.6)");
+  ctx.fillStyle=v;ctx.fillRect(0,0,VW,VH);
+}
+
+/* ---------- floating posts ---------- */
+function bubbles(){
+  const box=$("#bubs"), here=S.posts.filter(p=>p.room===(S.room&&S.room.id)||p.kind==="help").slice(0,4);
+  box.innerHTML=here.map((p,i)=>{
+    const k=KINDS[p.kind], rem=p.life-(S.t-p.born);
+    return `<div class="bub ${p.kind==="help"?"urgent":""}" style="--c:${k.c};left:${18+(i%2)*52}%;top:${218+i*118}px">
+      <div class="bin">
+        <div class="btop"><span class="tag">${k.label}${p.carried?" · CARRIED":""}</span>
+          <span class="dist">${p.mine?"you":dLab(p.metres)}</span></div>
+        ${p.poll?`<div class="poll">${[p.poll.a,p.poll.b].map((o,ix)=>{
+            const tot=p.votes[0]+p.votes[1]||1, pct=Math.round(p.votes[ix]/tot*100);
+            const shown=p.myvote!==null;
+            return `<button class="opt ${shown&&p.votes[ix]>=Math.max(...p.votes)?"win":""}" data-vt="${p.id}:${ix}">
+              <span class="fill" style="width:${shown?pct:0}%"></span>
+              <span class="lbl"><span>${esc(o)}</span>
+              ${shown?`<span class="pct">${pct}%</span>`:""}</span></button>`;}).join("")}</div>
+          <p style="font-size:12px;color:var(--soft);margin-bottom:6px">${esc(p.poll.q)}</p>`
+          :`<p>${esc(p.body)}</p>`}
+        <div class="acts">
+          <button class="mini ${p.mybright?"g":""}" data-b="${p.id}">✦ ${p.bright||"BRIGHTEN"}</button>
+          ${p.mine?"":`<button class="mini" data-r="${p.id}">REPLY</button>`}
+          ${p.mine?"":`<button class="mini" data-c="${p.id}">CARRY</button>`}
+          ${p.kind==="help"&&!p.mine?`<button class="mini ${p.iam?"on":"r"}" data-g="${p.id}">${p.iam?"✓ COMING":"I'M COMING"}</button>`:""}
+          ${p.mine&&!p.revealed?`<button class="mini" data-v="${p.id}">REVEAL ME</button>`:""}
+          ${p.kind==="help"?`<span class="dist" style="color:var(--ok)">${p.coming} coming</span>`:""}
+        </div>
+        <div class="rx">${REACTS.map(e=>`<button class="${p.myreact===e?"on":""}" data-rx="${p.id}:${e}">${e}${p.react[e]?`<span class="cnt">${p.react[e]}</span>`:""}</button>`).join("")}</div>
+        ${p.hops?`<div class="hops">✦ CARRIED THROUGH ${p.hops} ROOM${p.hops>1?"S":""}</div>`:""}
+        <div class="life"><i style="width:${clamp(rem/p.life,0,1)*100}%"></i></div>
+      </div></div>`;
+  }).join("");
+  box.querySelectorAll("[data-b]").forEach(e=>e.onclick=()=>brighten(+e.dataset.b));
+  box.querySelectorAll("[data-r]").forEach(e=>e.onclick=()=>openChat(+e.dataset.r));
+  box.querySelectorAll("[data-c]").forEach(e=>e.onclick=()=>carry(+e.dataset.c));
+  box.querySelectorAll("[data-g]").forEach(e=>e.onclick=()=>coming(+e.dataset.g));
+  box.querySelectorAll("[data-v]").forEach(e=>e.onclick=()=>reveal(+e.dataset.v));
+  box.querySelectorAll("[data-rx]").forEach(e=>e.onclick=()=>{
+    const [id,em]=e.dataset.rx.split(":"); react(+id,em);});
+  box.querySelectorAll("[data-vt]").forEach(e=>e.onclick=()=>{
+    const [id,ix]=e.dataset.vt.split(":"); vote(+id,+ix);});
+}
+function brighten(id){const p=S.posts.find(x=>x.id===id);if(!p||p.mybright)return;
+  p.mybright=true;p.bright++;p.life+=6;
+  addGlow(S.bloom==="holi"?5.2:2.6);
+  toast(S.bloom==="holi"?"✦ colour everywhere · double glow":"✦ you brightened someone");bubbles();}
+function carry(id){const p=S.posts.find(x=>x.id===id);if(!p)return;
+  S.carry=p;toast("picked it up · walk to another room to drop it");}
+function coming(id){const p=S.posts.find(x=>x.id===id);if(!p||p.iam)return;
+  p.iam=true;p.coming++;addGlow(6);bubbles();toast("they can see help moving — still anonymously");}
+function reveal(id){const p=S.posts.find(x=>x.id===id);if(!p)return;
+  p.revealed=true;bubbles();toast("only this post shows your name");}
+function addGlow(v){S.glow=clamp(S.glow+v,0,100);}
+
+function react(id,emoji){
+  const p=S.posts.find(x=>x.id===id); if(!p||p.myreact)return;
+  p.myreact=emoji; p.react[emoji]=(p.react[emoji]||0)+1;
+  for(let i=0;i<5;i++)
+    S.floats.push({e:emoji,x:R(.2,.8)*VW,y:VH*.62,t:S.t,d:R(1.4,2.4),dx:R(-24,24)});
+  addGlow(1.2); bubbles();
+}
+function vote(id,which){
+  const p=S.posts.find(x=>x.id===id); if(!p||p.myvote!==null)return;
+  p.myvote=which; p.votes[which]++; addGlow(1.6); bubbles();
+  toast("voted · results are live for everyone in this room");
+}
+function answerQ(text){
+  if(!text.trim())return;
+  S.q.mine=text.trim(); S.q.count++;
+  S.q.answers.unshift({t:text.trim(),mine:true});
+  addGlow(8); toast("✦ answered tonight's question · +8 glow");
+  renderQ();
+}
+function renderQ(){
+  const box=$("#qbox"), a=S.q.answers.slice(0,4);
+  box.innerHTML=`<div class="qhead"><span class="qtag">TONIGHT&rsquo;S QUESTION</span>
+      <span class="qn">${S.q.count} answered</span></div>
+    <p class="qtext">${esc(S.q.text)}</p>
+    ${S.q.mine
+      ? `<div class="qmine">you said &ldquo;${esc(S.q.mine)}&rdquo;</div>`
+      : `<div class="crow"><input id="qin" maxlength="120" placeholder="answer anonymously…">
+         <button class="send" id="qsend">
+         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button></div>`}
+    ${a.length?`<div class="qlist">${a.map(x=>
+        `<div class="qa ${x.mine?"me":""} ${S.q.mine?"":"locked"}">${esc(x.t)}</div>`).join("")}</div>`:""}
+    ${S.q.mine?"":`<div class="qlock">✦ ANSWER TO READ WHAT ${S.q.count} PEOPLE SAID</div>`}`;
+  const qi=$("#qin");
+  if(qi){qi.onkeydown=e=>{if(e.key==="Enter")answerQ(qi.value);};
+    $("#qsend").onclick=()=>answerQ(qi.value);}
+}
+
+/* ---------- rooms list ---------- */
+function rooms(){
+  const b=B();
+  $("#chList").innerHTML=ROOMS.map(r=>{
+    const lit=S.lit.has(r.id), inside=S.room&&S.room.id===r.id;
+    const live=S.posts.filter(p=>p.room===r.id);
+    const last=live[0];
+    const d=Math.round(dist(S.me,r));
+    return `<button class="ch ${inside?"in":""} ${lit?"":"dark"}" data-room="${r.id}"
+      style="--c:${lit?b.c:"#5E7E96"}">
+      <span class="chdot"></span>
+      <span class="chm"><b>${r.n}</b>
+        <span>${last?esc(last.body):lit?"quiet in here right now":"nobody has spoken here tonight"}</span></span>
+      <span class="chs"><span class="cnt">${live.length} live</span>
+        <div class="far">${inside?"YOU'RE HERE":d+"m"}</div>
+        ${lit?"":'<div class="bonus">×3 GLOW</div>'}</span></button>`;
+  }).join("");
+  $("#chList").querySelectorAll("[data-room]").forEach(e=>e.onclick=()=>walkTo(e.dataset.room));
+}
+function walkTo(id){
+  const r=ROOMS.find(x=>x.id===id); if(!r)return;
+  S.me={x:r.x,y:r.y}; setRoom(r); go("map");
+  if(S.carry){
+    const p=S.carry; S.carry=null;
+    const np=post(p.kind,p.body,true,r.id);
+    np.carried=true; np.hops=(p.hops||0)+1; np.react=p.react; np.poll=p.poll; np.votes=p.votes;
+    addGlow(4+np.hops*2);
+    toast(`dropped here · carried through ${np.hops} room${np.hops>1?"s":""}`);
+  } else toast("you're in "+r.n);
+}
+function setRoom(r){
+  S.room=r;
+  const b=B(), lit=r?S.lit.has(r.id):true;
+  $("#here").style.setProperty("--c",lit?b.c:"#FFD36B");
+  $("#here").innerHTML=r
+    ? `<span class="pin"></span><b>${r.n}</b><span>${!lit?"DARK · FIRST POST ×3"
+        :S.typing?S.typing+" TYPING HERE…":S.posts.filter(p=>p.room===r.id).length+" LIVE"}</span>`
+    : `<span class="pin" style="background:#5E7E96;box-shadow:none"></span><b>Between rooms</b><span>WALK INTO ONE TO TALK</span>`;
+  $("#say").disabled=!r; $("#say").placeholder=r?KINDS[S.kind].hint:"walk into a room to talk…";
+  rooms();
+}
+
+/* ---------- threads ---------- */
+function openChat(id){
+  const p=S.posts.find(x=>x.id===id); if(!p)return;
+  let c=S.chats.find(c=>c.pid===id);
+  if(!c){
+    const n=S.chats.length+1;
+    c={pid:id,metres:p.metres,kind:p.kind,unread:0,last:S.t,
+       alias:aliasFor("th",n),          // what you call them — the app made it up
+       myname:aliasFor("me",n),         // what they call you — yours to change
+       msgs:[{w:"sys",t:"private · you are both anonymous. only a distance is shared."},{w:"them",t:p.body}]};
+    S.chats.push(c);}
+  S.open=c;c.unread=0;go("thread");thread();
+}
+function thread(){
+  if(S.circle){
+    const g=S.circle;
+    $("#thead").innerHTML=`<button class="ib" id="bk">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div><b>${esc(g.name)}</b><span>${g.members} inside · everyone anonymous</span></div>
+      <span class="code" style="margin-left:auto">${g.code}</span>`;
+    $("#bk").onclick=()=>{S.circle=null;go("ci");};
+    $("#msgs").innerHTML=`<div class="sys">anonymous group · you are <b>${aliasFor(g.id,0)}</b> in here, and nowhere else</div>`
+      + g.msgs.map(m=>m.n===0
+        ? `<div class="m me">${esc(m.t)}</div>`
+        : `<div class="m them"><span class="alias">${aliasFor(g.id,m.n)}</span>${esc(m.t)}</div>`).join("");
+    $("#msgs").scrollTop=1e6;
+    $("#rep").placeholder="say something to the circle…";
+    return;
+  }
+  const c=S.open;if(!c)return;
+  $("#thead").innerHTML=`<button class="ib" id="bk">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div><b>${c.alias}</b><span>${dLab(c.metres)} · anonymous</span></div>
+    <button class="ib" id="renameBtn" title="Change how they see you" style="margin-left:auto">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17Z"/></svg>
+    </button>`;
+  $("#bk").onclick=()=>go("rep");
+  $("#renameBtn").onclick=()=>rename(c);
+  $("#msgs").innerHTML=
+      `<div class="sys">in here you are <b>${esc(c.myname)}</b> — only to them. tap ✎ to change it.</div>`
+    + c.msgs.map(m=>m.w==="sys"?`<div class="sys">${m.t}</div>`
+        :`<div class="m ${m.w}">${esc(m.t)}</div>`).join("");
+  $("#msgs").scrollTop=1e6;
+}
+
+/* You choose how one person knows you. It is scoped to that conversation and
+   nowhere else: never on a post, never on the map, never in a circle. Pick a
+   different name for every person if you like — nothing joins them up. */
+function rename(c){
+  $("#renameSheet").classList.add("on");
+  $("#rnIn").value=c.myname;
+  $("#rnWho").textContent=c.alias;
+  $("#rnSave").onclick=()=>{
+    const v=$("#rnIn").value.trim().slice(0,20);
+    if(v){c.myname=v;toast(`they will see you as ${v}`);}
+    $("#renameSheet").classList.remove("on");thread();};
+  $("#rnCancel").onclick=()=>$("#renameSheet").classList.remove("on");
+  $("#rnIn").focus();
+}
+function replies(){
+  const u=S.chats.reduce((n,c)=>n+c.unread,0);
+  $("#tn").style.display=u?"block":"none";$("#tn").textContent=u;
+  $("#repList").innerHTML=S.chats.length?S.chats.slice().sort((a,b)=>(b.last||0)-(a.last||0)).map(c=>{
+    const l=c.msgs.filter(m=>m.w!=="sys").slice(-1)[0];
+    const mine=l&&l.w==="me";
+    return `<button class="ch ${c.unread?"in":""}" data-o="${c.pid}" style="--c:${KINDS[c.kind].c}">
+      <span class="chdot"></span>
+      <span class="chm"><b>${esc(c.alias)}</b>
+        <span>${mine?'<span style="color:var(--faint)">you: </span>':""}${esc(l?l.t:"")}</span></span>
+      <span class="chs"><span class="cnt">${dLab(c.metres)}</span>
+        ${c.unread?`<div class="far" style="color:var(--help)">${c.unread} NEW</div>`
+                  :`<div class="far">${Math.max(1,Math.round(S.t-(c.last||S.t)))}s</div>`}</span></button>`;
+  }).join(""):`<div class="empty">Your inbox is empty.<br><br>Tap <b style="color:#E4EFF4">REPLY</b> on anything around you and a thread opens here. Threads <em>stay</em> &mdash; you can keep talking to the same person for weeks without either of you ever knowing who the other is.</div>`;
+  $("#repList").querySelectorAll("[data-o]").forEach(e=>e.onclick=()=>openChat(+e.dataset.o));
+}
+function send(t){
+  if(S.circle){
+    const g=S.circle; if(!t.trim())return;
+    g.msgs.push({n:0,t:t.trim()}); addGlow(1.5); thread();
+    setTimeout(()=>{g.msgs.push({n:1+Math.floor(R(1,7)),t:pick(REPLY)});thread();circles();},R(1300,2600));
+    return;
+  }
+  const c=S.open;if(!c||!t.trim())return;
+  c.msgs.push({w:"me",t:t.trim()});c.last=S.t;thread();
+  setTimeout(()=>{c.msgs.push({w:"them",t:pick(REPLY)});c.last=S.t;
+    if(S.open!==c)c.unread++;thread();replies();},R(1400,2800));
+}
+
+/* ---------- circles ---------- */
+function circles(){
+  if(S.cmode==="new"){
+    $("#ciList").innerHTML=`
+      <div class="cform">
+        <label>WHAT IS THIS CIRCLE CALLED</label>
+        <input id="cname" maxlength="28" placeholder="3am club, thermo is fake, floor 3…">
+        <label>WHO CAN GET IN</label>
+        <div class="who2">
+          <button data-w="code" class="${S.cwho==="code"?"sel":""}">ANYONE WITH THE CODE</button>
+          <button data-w="here" class="${S.cwho==="here"?"sel":""}">ANYONE IN THIS ROOM</button>
+        </div>
+        <button class="cta" id="cmake">Create it</button>
+      </div>
+      <div class="cform">
+        <label>OR JOIN ONE</label>
+        <input id="ccode" maxlength="4" placeholder="4-letter code" style="text-transform:uppercase;letter-spacing:.3em;font-family:var(--mono)">
+        <button class="cta" id="cjoin">Join</button>
+      </div>
+      <button class="cta" id="cback" style="background:none;border-color:var(--edge);color:var(--soft)">Back</button>`;
+    $("#ciList").querySelectorAll("[data-w]").forEach(b=>b.onclick=()=>{S.cwho=b.dataset.w;circles();});
+    $("#cmake").onclick=()=>{
+      const n=$("#cname").value.trim(); if(!n){toast("give it a name first");return;}
+      const c={id:"u"+Date.now(),name:n,code:newCode(),members:1,joined:true,dawn:S.cwho==="here",msgs:[]};
+      S.circles.unshift(c);S.cmode="list";addGlow(6);
+      toast(`created · share the code ${c.code}`);circles();};
+    $("#cjoin").onclick=()=>{
+      const code=$("#ccode").value.trim().toUpperCase();
+      const c=S.circles.find(x=>x.code===code);
+      if(!c){toast("no circle with that code");return;}
+      c.joined=true;c.members++;S.cmode="list";addGlow(3);
+      toast("you're in · nobody knows it's you");circles();};
+    $("#cback").onclick=()=>{S.cmode="list";circles();};
+    return;
+  }
+  const mine=S.circles.filter(c=>c.joined), rest=S.circles.filter(c=>!c.joined);
+  $("#ciList").innerHTML=`
+    <div class="cnew"><button id="cnewBtn">+ CREATE A CIRCLE</button><button id="cjoinBtn">ENTER A CODE</button></div>
+    ${[...mine,...rest].map(c=>`
+      <button class="ch ${c.joined?"in":""}" data-ci="${c.id}" style="--c:${c.joined?"var(--glow)":"#5E7E96"}">
+        <span class="chdot"></span>
+        <span class="chm"><b>${esc(c.name)}</b>
+          <span>${c.msgs.length?esc(c.msgs[c.msgs.length-1].t):"nobody has said anything yet"}</span></span>
+        <span class="chs"><span class="cnt">${c.members}</span>
+          <div class="far">${c.joined?"JOINED":"LOCKED"}</div>
+          ${c.joined?`<div class="bonus">${c.code}</div>`:""}</span></button>`).join("")}`;
+  $("#cnewBtn").onclick=()=>{S.cmode="new";circles();};
+  $("#cjoinBtn").onclick=()=>{S.cmode="new";circles();};
+  $("#ciList").querySelectorAll("[data-ci]").forEach(e=>e.onclick=()=>{
+    const c=S.circles.find(x=>x.id===e.dataset.ci);
+    if(!c.joined){toast("you need the code · ask someone in it");return;}
+    S.circle=c;S.open=null;go("thread");thread();});
+}
+
+/* ---------- nav + sheets ---------- */
+function go(n){
+  if(n!=="thread")S.circle=null;
+  ["map","ch","ci","rep","thread"].forEach(s=>$("#s-"+s).classList.toggle("on",s===n));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",
+    t.dataset.go===n||(n==="thread"&&t.dataset.go===(S.circle?"ci":"rep"))));
+  $("#hud").style.display=(n==="map")?"flex":"none";
+  if(n==="ch")rooms(); if(n==="rep")replies(); if(n==="ci")circles();
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>go(t.dataset.go));
+function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");
+  clearTimeout(e._h);e._h=setTimeout(()=>e.classList.remove("show"),2600);}
+
+function bloomList(){
+  $("#bloomList").innerHTML=Object.entries(BLOOMS).map(([k,v])=>
+    `<button class="bl ${k===S.bloom?"sel":""}" data-bl="${k}" style="--c:${v.c}">
+      <span class="chdot" style="background:${v.c};box-shadow:0 0 11px ${v.c}"></span>
+      <span><b>${v.n}</b><span>${v.rule}</span></span></button>`).join("");
+  $("#bloomList").querySelectorAll("[data-bl]").forEach(e=>e.onclick=()=>{
+    S.bloom=e.dataset.bl;
+    $("#bloomName").textContent=B().n;
+    $("#bloomChip").style.setProperty("--c",B().c);
+    if(S.bloom==="diwali")S.glow=100;
+    bloomList();setRoom(S.room);toast(B().n+" · "+B().rule);});
+}
+
+/* ---------- compose ---------- */
+$("#kinds").innerHTML=Object.entries(KINDS).map(([k,v])=>
+  `<button class="kind ${k==="say"?"sel":""}" data-k="${k}" style="--c:${v.c}">${v.label}</button>`).join("");
+$("#kinds").querySelectorAll(".kind").forEach(b=>b.onclick=()=>{
+  S.kind=b.dataset.k;
+  $("#kinds").querySelectorAll(".kind").forEach(x=>x.classList.toggle("sel",x.dataset.k===S.kind));
+  $("#say").placeholder=S.room?KINDS[S.kind].hint:"walk into a room to talk…";});
+const say=$("#say"),sb=$("#sendBtn");
+say.oninput=()=>sb.disabled=!say.value.trim()||!S.room;
+sb.onclick=()=>{
+  const dark=S.room&&!S.lit.has(S.room.id);
+  post(S.kind,say.value.trim(),true);
+  if(dark){S.lit.add(S.room.id);addGlow(12);toast("✦ you lit this room · ×3 glow");}
+  else toast(S.kind==="help"?"sent across the whole campus":"posted anonymously");
+  say.value="";sb.disabled=true;bubbles();setRoom(S.room);};
+say.onkeydown=e=>{if(e.key==="Enter"&&!sb.disabled)sb.click();};
+const rep=$("#rep"),rb=$("#repBtn");
+rep.oninput=()=>rb.disabled=!rep.value.trim();
+rb.onclick=()=>{send(rep.value);rep.value="";rb.disabled=true;};
+rep.onkeydown=e=>{if(e.key==="Enter"&&rep.value.trim())rb.click();};
+
+$("#introGo").onclick=()=>$("#intro").classList.remove("on");
+$("#helpBtn").onclick=()=>$("#intro").classList.add("on");
+$("#bloomChip").onclick=()=>$("#bloomSheet").classList.add("on");
+$("#bloomClose").onclick=()=>$("#bloomSheet").classList.remove("on");
+$("#streakChip").onclick=()=>toast("6 nights in a row · finish one room a night to keep it");
+$("#s-map").onclick=e=>{
+  if(e.target.closest(".bub")||e.target.closest(".dock")||e.target.closest(".hud"))return;
+  const r=cv.getBoundingClientRect();
+  S.me={x:clamp((e.clientX-r.left-OX)/SC,6,W.w-6),y:clamp((e.clientY-r.top-OY)/SC,6,W.h-6)};
+  const nr=roomAt(S.me);
+  if((nr&&nr.id)!==(S.room&&S.room.id)){
+    setRoom(nr);
+    if(nr&&S.carry){const p=S.carry;S.carry=null;
+      const np=post(p.kind,p.body,true,nr.id);
+      np.carried=true;np.hops=(p.hops||0)+1;np.react=p.react;np.poll=p.poll;np.votes=p.votes;
+      addGlow(4+np.hops*2);
+      toast(`dropped here · carried through ${np.hops} room${np.hops>1?"s":""}`);}
+    else if(nr)toast("you're in "+nr.n);
+  }
+};
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,.05);last=now;S.t+=dt;
+  S.glow=clamp(S.glow-.14*dt,0,100);
+  S.floats=S.floats.filter(f=>S.t-f.t<f.d);
+  if(Math.random()<dt*.35)S.typing=Math.round(R(0,3.4));
+  for(let i=S.posts.length-1;i>=0;i--){const p=S.posts[i];
+    if(!p.mine)p.metres=clamp(p.metres+R(-14,14)*dt,12,600);
+    if(p.kind==="help"&&!p.mine&&Math.random()<dt*.06)p.coming++;
+    if(S.t-p.born>=p.life)S.posts.splice(i,1);}
+  if(S.posts.length<9&&Math.random()<dt*.7){
+    const s=pick(SEED), r=pick(ROOMS);
+    post(s[0],s[1],false,r.id); if(Math.random()<.4)S.lit.add(r.id);}
+  $("#glowN").textContent=Math.round(S.glow);
+  $("#glowBar").style.width=S.glow+"%";
+  $("#nearN").textContent=S.near;
+  $("#nearBar").style.width=clamp(S.near/70*100,0,100)+"%";
+  $("#tierLbl").textContent=S.carry?"CARRYING A LINE":"NEARBY";
+  if(Math.floor(S.t*2)!==Math.floor((S.t-dt)*2)){bubbles();
+    if(!S.q.mine&&Math.random()<.25){S.q.count++;renderQ();}}
+  draw();requestAnimationFrame(frame);
+}
+
+size();addEventListener("resize",size);
+SEED.slice(0,5).forEach((s,i)=>post(s[0],s[1],false,ROOMS[i%ROOMS.length].id));
+S.lit.add("lib");S.lit.add("mess");
+S.circles=SEED_CIRCLES.map(c=>({...c}));
+S.q.answers=ANSWERS.slice(0,4).map(t=>({t,mine:false}));
+bloomList();setRoom(roomAt(S.me));replies();circles();bubbles();renderQ();
+setInterval(()=>{S.near=clamp(S.near+Math.round(R(-3,3.4)),18,66);},2600);
+requestAnimationFrame(frame);
+})();
+</script>

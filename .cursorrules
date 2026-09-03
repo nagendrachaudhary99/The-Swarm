@@ -1,0 +1,33 @@
+# The Swarm — Cursor rules
+
+Anonymous campus sonar. Flutter, no state-management package, no game engine.
+
+## Architecture (do not restructure)
+- `lib/engine/swarm_engine.dart` — ALL game logic. A `ChangeNotifier` with one
+  `update(dt)` per frame. Zero Flutter widgets in here. Week 2 swaps its data
+  source for Supabase streams without touching a single widget.
+- `lib/painters/sonar_painter.dart` — the map, sweep, hunt ring, glow. One
+  `CustomPainter` with `repaint: engine`. Never add a game engine dependency.
+- `lib/widgets/` — dumb widgets. They read the engine, they never own state.
+- `lib/screens/emergence_screen.dart` — owns the `Ticker` and calls
+  `engine.update(dt)`. The only place a frame loop exists.
+
+## Non-negotiable product rules
+1. **The 10 metre floor.** `Band.mirage` returns NOTHING. Never add a feature
+   that narrows a target below 10 m, ever, for any class or purchase.
+2. **Bands, not points.** The client may know how *far*, never *where*. When the
+   Supabase layer lands, coordinates must not appear in any client payload.
+3. **The freeze right.** Anyone tracked is notified and can dissolve their
+   signal by standing still. Do not add a counter to this.
+4. **Mutual consent.** No reveal, chat or photo unless both sides opt in.
+5. **24-hour amnesia.** Whispers are deleted, never archived or soft-deleted.
+6. **Scarcity.** The app is locked outside emergence windows. Do not add a
+   "practice mode" or infinite scroll. There is no feed. Ever.
+
+## Style
+- Colours and text styles come from `lib/theme.dart` only. No inline hex, no
+  `TextStyle(...)` literals in widgets.
+- Three typefaces, three jobs: `Swarm.data` for machine readouts,
+  `Swarm.voice` for anything a human said, `Swarm.display` for headings.
+- Comments explain *why* a rule exists, not what the line does.
+- `prefer_const_constructors` is on. Keep the analyzer clean.
