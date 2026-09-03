@@ -169,6 +169,53 @@ class SwarmApi {
   Future<String> band(String whisperId) async =>
       await _db.rpc('whisper_band', params: {'target': whisperId}) as String;
 
+  // ------------------------------------------------------------- safety
+  // Apple Guideline 1.2 requires a filter, a report path, and blocking for any
+  // app with anonymous chat. All three are enforced in Postgres; these are
+  // only the doorways to them.
+
+  /// A courtesy check so someone gets an instant answer instead of a silent
+  /// failure. The server screens again on insert — this is never the control.
+  static final _filter = [
+    RegExp(r'kill\s*your\s*self', caseSensitive: false),
+    RegExp(r'\bkys\b', caseSensitive: false),
+    RegExp(r'\bgo die\b', caseSensitive: false),
+    RegExp(r'rape', caseSensitive: false),
+    RegExp(r'\bn[i1l]gg', caseSensitive: false),
+    RegExp(r'\bf[a4]gg', caseSensitive: false),
+  ];
+  static bool wouldBeBlocked(String body) => _filter.any((r) => r.hasMatch(body));
+
+  /// Report a post. Anonymous in both directions: the author is never told who
+  /// reported them, and the reporter never learns who they reported. The server
+  /// snapshots the text first, because the post itself dies within the minute.
+  Future<String> report(
+    String targetId, {
+    required String reason,
+    String kind = 'post',
+    String? detail,
+  }) async =>
+      await _db.rpc('report', params: {
+        'kind_in': kind,
+        'target_in': targetId,
+        'reason_in': reason,
+        'detail_in': detail,
+      }) as String;
+
+  /// Block whoever wrote a post — without ever learning who that is. The id is
+  /// resolved inside a security-definer function and never returned; even the
+  /// blocks table is unreadable from a client, because two rows in it would be
+  /// enough to tell whether two anonymous posts came from one person.
+  Future<bool> blockAuthorOf(String postId) async =>
+      await _db.rpc('block_author', params: {'target': postId}) as bool;
+
+  Future<int> blockedCount() async => await _db.rpc('my_blocks') as int;
+
+  Future<List<Map<String, dynamic>>> myReports() async =>
+      (await _db.rpc('my_reports') as List).cast<Map<String, dynamic>>();
+
+  Future<int> unblockAll() async => await _db.rpc('unblock_all') as int;
+
   Future<List<Map<String, dynamic>>> blooms() async =>
       (await _db.from('blooms').select().order('starts'))
           .cast<Map<String, dynamic>>();

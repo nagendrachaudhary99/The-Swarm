@@ -153,6 +153,19 @@
   .chs .far{color:var(--faint);margin-top:3px}
   .bonus{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:.1em;margin-top:3px}
 
+  /* ---- safety ---- */
+  .flag{margin-left:auto;color:var(--faint);font-size:11px;padding:4px 6px;border-radius:6px;line-height:1}
+  .flag:hover{color:var(--help);background:rgba(255,59,92,.1)}
+  .reasons{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .reason{padding:11px 12px;border-radius:11px;border:1px solid var(--edge);text-align:left;width:100%}
+  .reason.sel{border-color:var(--help);background:rgba(255,59,92,.09)}
+  .reason b{display:block;font-family:var(--disp);font-size:13px;font-weight:700}
+  .reason span{display:block;font-family:var(--ui);font-weight:300;font-size:12.5px;color:var(--soft);margin-top:2px}
+  .danger{width:100%;padding:13px;border-radius:12px;background:rgba(255,59,92,.12);
+    border:1px solid rgba(255,59,92,.45);color:#FF7891;
+    font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-top:8px}
+  .filtered{border-color:rgba(255,59,92,.5)!important}
+
   /* ---- circles ---- */
   .cnew{display:flex;gap:8px;margin-bottom:10px}
   .cnew button{flex:1;padding:11px;border-radius:11px;border:1px dashed var(--edge);
@@ -343,9 +356,14 @@
         <p>Reply to anyone and that thread <b>stays</b>. They get a two-word label so you can tell your conversations apart, and you can pick <b>what they call you</b> &mdash; a different name for every person if you want. None of it shows on the map or on a post. Nothing joins them up.</p></div></div>
       <div class="rule"><span class="rn">7</span><div><h4>Circles: your own anonymous groups</h4>
         <p>Make a group for anything &mdash; your floor, a subject you hate, the people awake at 3am. Share the four-letter code out loud and whoever you give it to gets in. <b>Inside a circle you get a two-word alias so people can follow what you say &mdash; and it only exists in that circle.</b> The same person is a different stranger in every group.</p></div></div>
+      <div class="rule"><span class="rn">8</span><div><h4>Report anything, block anyone</h4>
+        <p>Every post has a <b>⚑</b>. Reporting is anonymous in both directions &mdash; they are never told, and you never learn who they were. Three reports hide a post immediately. Blocking works even though nobody has a name: the server knows who wrote it and simply stops showing you their posts, without telling either of you anything.</p></div></div>
       <div class="big"><h4>If something is wrong</h4>
         <p>Post it as <b style="color:#E4EFF4">HELP</b>. It reaches the whole campus instead of one room, stays up for half an hour, and everyone can tap <b style="color:#E4EFF4">I'm coming</b> &mdash; so you can watch help move toward you without any of you knowing who the others are.</p></div>
     </div><div class="sfoot"><button class="cta" id="introGo">I understand &mdash; let me in</button></div></div>
+
+    <div class="sheet" id="reportSheet"><div class="sbody" id="rpBody"></div>
+      <div class="sfoot"><button class="cta" id="rpCancel" style="background:none;border-color:var(--edge);color:var(--soft)">Cancel</button></div></div>
 
     <div class="sheet" id="renameSheet"><div class="sbody">
       <h3>How should they know you?</h3>
@@ -457,7 +475,8 @@ const REPLY=["i'm near there, stay put","honestly same","walking that way now","
 const S={t:0,me:{x:110,y:158},posts:[],chats:[],open:null,kind:"say",
   glow:34,streak:6,near:38,bloom:"tonight",room:null,carry:null,lit:new Set(["quad"]),
   q:{text:pick(QUESTIONS),answers:[],count:142,mine:null},
-  floats:[], typing:0, circles:[], circle:null, cmode:"list", cwho:"code"};
+  floats:[], typing:0, circles:[], circle:null, cmode:"list", cwho:"code",
+  blocked:new Set(), blocks:0, reports:0};
 let pid=0;
 
 const B=()=>BLOOMS[S.bloom];
@@ -545,7 +564,8 @@ function draw(){
 
 /* ---------- floating posts ---------- */
 function bubbles(){
-  const box=$("#bubs"), here=S.posts.filter(p=>p.room===(S.room&&S.room.id)||p.kind==="help").slice(0,4);
+  const box=$("#bubs"), here=S.posts.filter(p=>
+    !S.blocked.has(p.id) && (p.room===(S.room&&S.room.id)||p.kind==="help")).slice(0,4);
   box.innerHTML=here.map((p,i)=>{
     const k=KINDS[p.kind], rem=p.life-(S.t-p.born);
     return `<div class="bub ${p.kind==="help"?"urgent":""}" style="--c:${k.c};left:${18+(i%2)*52}%;top:${218+i*118}px">
@@ -568,6 +588,7 @@ function bubbles(){
           ${p.kind==="help"&&!p.mine?`<button class="mini ${p.iam?"on":"r"}" data-g="${p.id}">${p.iam?"✓ COMING":"I'M COMING"}</button>`:""}
           ${p.mine&&!p.revealed?`<button class="mini" data-v="${p.id}">REVEAL ME</button>`:""}
           ${p.kind==="help"?`<span class="dist" style="color:var(--ok)">${p.coming} coming</span>`:""}
+          ${p.mine?"":`<button class="flag" data-fl="${p.id}" title="Report or block">⚑</button>`}
         </div>
         <div class="rx">${REACTS.map(e=>`<button class="${p.myreact===e?"on":""}" data-rx="${p.id}:${e}">${e}${p.react[e]?`<span class="cnt">${p.react[e]}</span>`:""}</button>`).join("")}</div>
         ${p.hops?`<div class="hops">✦ CARRIED THROUGH ${p.hops} ROOM${p.hops>1?"S":""}</div>`:""}
@@ -583,6 +604,7 @@ function bubbles(){
     const [id,em]=e.dataset.rx.split(":"); react(+id,em);});
   box.querySelectorAll("[data-vt]").forEach(e=>e.onclick=()=>{
     const [id,ix]=e.dataset.vt.split(":"); vote(+id,+ix);});
+  box.querySelectorAll("[data-fl]").forEach(e=>e.onclick=()=>flagPost(+e.dataset.fl));
 }
 function brighten(id){const p=S.posts.find(x=>x.id===id);if(!p||p.mybright)return;
   p.mybright=true;p.bright++;p.life+=6;
@@ -763,6 +785,48 @@ function send(t){
     if(S.open!==c)c.unread++;thread();replies();},R(1400,2800));
 }
 
+/* ---------- safety ----------
+   The client screens before sending so people get an instant, honest answer
+   instead of a silent failure — but the server screens again, because a
+   client-side filter is a courtesy, never a control. */
+const FILTER=[/kill\s*your\s*self/i,/\bkys\b/i,/\bgo die\b/i,/rape/i,/\bn[i1l]gg/i,/\bf[a4]gg/i];
+const screen=t=>FILTER.some(r=>r.test(t))?"block":"ok";
+const REASONS=[
+  ["harassment","Harassment or bullying","Aimed at a person to hurt them"],
+  ["threat","Threat or violence","Someone said they would hurt someone"],
+  ["sexual","Sexual content","Unwanted, explicit, or involving a minor"],
+  ["doxxing","Identifying someone","Naming or describing a real person"],
+  ["self_harm","Someone may be in danger","They talked about hurting themselves"],
+  ["spam","Spam","Selling, scamming or flooding"]
+];
+let flagTarget=null, flagReason=null;
+
+function flagPost(id){
+  flagTarget=id; flagReason=null;
+  $("#reportSheet").classList.add("on"); renderReport();
+}
+function renderReport(){
+  $("#rpBody").innerHTML=`
+    <h3>Report this post</h3>
+    <p class="lede">Tell us what is wrong with it. We never tell them who reported it, and you never find out who wrote it — a moderator sees the words, not either of you.</p>
+    <div class="reasons">${REASONS.map(([k,t,d])=>
+      `<button class="reason ${flagReason===k?"sel":""}" data-rs="${k}"><b>${t}</b><span>${d}</span></button>`).join("")}</div>
+    <button class="cta" id="rpSend">Send report</button>
+    <button class="danger" id="rpBlock">Also block this person</button>
+    <p class="lede" style="font-size:12.5px;margin:14px 0 0">Three separate reports hide a post straight away, before anyone reads it. Blocking works even though neither of you has a name — the server knows who wrote it and simply stops showing you their posts.</p>`;
+  $("#rpBody").querySelectorAll("[data-rs]").forEach(b=>b.onclick=()=>{flagReason=b.dataset.rs;renderReport();});
+  $("#rpSend").onclick=()=>{
+    if(!flagReason){toast("pick what is wrong with it first");return;}
+    S.reports++; closeReport();
+    toast("reported · a moderator will see the words, not you");};
+  $("#rpBlock").onclick=()=>{
+    const p=S.posts.find(x=>x.id===flagTarget);
+    if(p){S.blocked.add(p.id);S.blocks++;}
+    closeReport(); bubbles();
+    toast("blocked · you will not see them again, and they are not told");};
+}
+function closeReport(){$("#reportSheet").classList.remove("on");flagTarget=null;}
+
 /* ---------- circles ---------- */
 function circles(){
   if(S.cmode==="new"){
@@ -853,6 +917,13 @@ $("#kinds").querySelectorAll(".kind").forEach(b=>b.onclick=()=>{
 const say=$("#say"),sb=$("#sendBtn");
 say.oninput=()=>sb.disabled=!say.value.trim()||!S.room;
 sb.onclick=()=>{
+  if(screen(say.value)){
+    if(screen(say.value)==="block"){
+      say.classList.add("filtered");
+      toast("that will not send · it targets someone");
+      setTimeout(()=>say.classList.remove("filtered"),2200);
+      return;}
+  }
   const dark=S.room&&!S.lit.has(S.room.id);
   post(S.kind,say.value.trim(),true);
   if(dark){S.lit.add(S.room.id);addGlow(12);toast("✦ you lit this room · ×3 glow");}
@@ -864,6 +935,7 @@ rep.oninput=()=>rb.disabled=!rep.value.trim();
 rb.onclick=()=>{send(rep.value);rep.value="";rb.disabled=true;};
 rep.onkeydown=e=>{if(e.key==="Enter"&&rep.value.trim())rb.click();};
 
+$("#rpCancel").onclick=closeReport;
 $("#introGo").onclick=()=>$("#intro").classList.remove("on");
 $("#helpBtn").onclick=()=>$("#intro").classList.add("on");
 $("#bloomChip").onclick=()=>$("#bloomSheet").classList.add("on");
