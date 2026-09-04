@@ -74,7 +74,19 @@ class SwarmApi {
       // A clicked link comes back with the session in the URL. Let the SDK
       // pick it up and clean the address bar, so arriving from an email lands
       // in exactly the same state as typing a code.
-      authOptions: const FlutterAuthClientOptions(detectSessionInUri: true),
+      //
+      // Implicit, not the PKCE default, and this is the whole reason a clicked
+      // link used to loop back to the gate. PKCE keeps a code verifier in the
+      // storage of the browser that ASKED for the link, and the mailed link is
+      // then worth nothing anywhere else — but a mail app opens links in its
+      // own in-app browser, so "anywhere else" is the normal case, not the
+      // edge one. The exchange failed with no session, the root rebuilt, and
+      // the door reappeared. Implicit puts the tokens in the URL itself, so
+      // whichever browser opens the link is the one that gets signed in.
+      authOptions: const FlutterAuthClientOptions(
+        detectSessionInUri: true,
+        authFlowType: AuthFlowType.implicit,
+      ),
     );
     final api = SwarmApi._(Supabase.instance.client);
     _instance = api;
@@ -244,11 +256,38 @@ class SwarmApi {
 
   Future<void> signOut() => _db.auth.signOut();
 
-  /// Give the stored session a moment to come back off disk before anyone
-  /// decides whether to show the door.
+  /// Give a session a chance to appear before anyone decides to show the door.
+  ///
+  /// Two different waits hide in here. A session stored on disk comes back in
+  /// a few frames. A session arriving *in the URL* costs a network round trip
+  /// to Supabase — and 350ms of guessing is how a perfectly good link ends up
+  /// showing the sign-in screen anyway. So when the address bar is carrying
+  /// auth parameters we wait for the sign-in itself, and only give up after
+  /// long enough that giving up means it really failed.
   Future<void> restoreSession() async {
     if (signedIn) return;
+    if (_urlCarriesAuth) {
+      try {
+        await authChanges
+            .firstWhere((s) => s.event == AuthChangeEvent.signedIn)
+            .timeout(const Duration(seconds: 10));
+        return;
+      } catch (_) {
+        // Expired, already spent, or refused. The door is the honest answer.
+      }
+    }
     await Future<void>.delayed(const Duration(milliseconds: 350));
+  }
+
+  /// Is this page load the tail end of a clicked link? Implicit flow returns
+  /// the tokens in the fragment; an error comes back the same way.
+  static bool get _urlCarriesAuth {
+    if (!kIsWeb) return false;
+    final u = Uri.base;
+    final both = '${u.fragment}&${u.query}';
+    return both.contains('access_token=') ||
+        both.contains('error=') ||
+        both.contains('code=');
   }
 
   Stream<AuthState> get authChanges => _db.auth.onAuthStateChange;
