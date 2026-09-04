@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
@@ -57,7 +59,14 @@ class SwarmApi {
   static bool get ready => _instance != null;
 
   static Future<SwarmApi> connect() async {
-    await Supabase.initialize(url: Config.url, publishableKey: Config.key);
+    await Supabase.initialize(
+      url: Config.url,
+      publishableKey: Config.key,
+      // A clicked link comes back with the session in the URL. Let the SDK
+      // pick it up and clean the address bar, so arriving from an email lands
+      // in exactly the same state as typing a code.
+      authOptions: const FlutterAuthClientOptions(detectSessionInUri: true),
+    );
     final api = SwarmApi._(Supabase.instance.client);
     _instance = api;
     return api;
@@ -83,6 +92,22 @@ class SwarmApi {
     return campusDomains.any(e.endsWith);
   }
 
+  /// Where Supabase should send someone after it verifies a link.
+  ///
+  /// Without this it uses the project's Site URL, which ships as
+  /// `http://localhost:3000` and is almost never where the app is actually
+  /// running — you click the link, get signed in, and land on a dead port with
+  /// the token already spent. Supabase always permits `localhost`, so on web we
+  /// simply name the origin we are being served from and the problem is gone.
+  ///
+  /// A deployed origin is NOT permitted by default: it has to be added under
+  /// Authentication → URL Configuration → Redirect URLs, or Supabase silently
+  /// falls back to the Site URL again.
+  static String? get _redirectTo {
+    if (kIsWeb) return Uri.base.origin;
+    return 'closer://auth-callback';
+  }
+
   /// Send a six-digit code. Deliberately not a clickable link: deep-linking a
   /// magic link into iOS, Android and web all at once is three separate
   /// configuration problems, and a typed code is none of them.
@@ -91,7 +116,11 @@ class SwarmApi {
     if (!isCampusEmail(e)) {
       throw const CampusEmailRejected();
     }
-    await _db.auth.signInWithOtp(email: e, shouldCreateUser: true);
+    await _db.auth.signInWithOtp(
+      email: e,
+      shouldCreateUser: true,
+      emailRedirectTo: _redirectTo,
+    );
   }
 
   /// Accepts whichever thing the email actually contained.
