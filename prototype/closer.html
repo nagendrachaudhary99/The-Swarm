@@ -57,9 +57,11 @@
   .screen{flex:1;position:relative;overflow:hidden;display:none;flex-direction:column}
   .screen.on{display:flex}
   #map{position:absolute;inset:0;width:100%;height:100%}
-  .bubs{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:5}
-  .bub{position:absolute;width:206px;margin-left:-103px;pointer-events:auto;
-    animation:in .5s cubic-bezier(.2,.9,.3,1) both}
+  .bubs{position:absolute;left:0;right:0;z-index:5;
+    overflow-y:auto;overscroll-behavior:contain;
+    padding:10px 11px 4px;display:flex;flex-direction:column;gap:9px;
+    -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
+  .bub{width:100%;animation:in .5s cubic-bezier(.2,.9,.3,1) both}
   @keyframes in{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1}}
   .bin{background:linear-gradient(165deg,rgba(20,32,44,.95),rgba(9,14,22,.95));
     border:1px solid var(--edge);border-left:2px solid var(--c);border-radius:13px 13px 13px 4px;
@@ -80,7 +82,7 @@
   .life{height:2px;border-radius:1px;background:rgba(255,255,255,.08);margin-top:7px;overflow:hidden}
   .life i{display:block;height:100%;background:var(--c);opacity:.6}
   /* ---- tonight's question ---- */
-  .qbox{position:absolute;left:11px;right:11px;top:78px;z-index:7;
+  .qbox{position:absolute;left:11px;right:11px;top:78px;z-index:7;max-height:46%;overflow-y:auto;
     background:linear-gradient(160deg,rgba(28,22,10,.96),rgba(9,14,22,.96));
     border:1px solid rgba(255,211,107,.34);border-radius:14px;padding:11px 12px 10px;
     box-shadow:0 14px 36px -16px #000,0 0 26px -14px var(--gold)}
@@ -117,13 +119,30 @@
   .hops{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:.1em;margin-top:6px}
 
   /* ---- composer ---- */
-  .dock{position:absolute;left:0;right:0;bottom:0;z-index:9;padding:9px 11px 12px;
+  .dock{position:absolute;left:0;right:0;bottom:0;z-index:9;padding:9px 11px 11px;
     background:linear-gradient(to top,rgba(4,6,11,.97) 55%,rgba(4,6,11,0))}
   .here{display:flex;align-items:center;gap:7px;margin-bottom:8px;padding:7px 10px;border-radius:10px;
     background:rgba(15,23,35,.9);border:1px solid var(--edge)}
   .here .pin{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 9px var(--c);flex:none}
   .here b{font-family:var(--disp);font-size:12px;font-weight:700;letter-spacing:-.01em}
   .here span{font-family:var(--mono);font-size:8.5px;color:var(--faint);margin-left:auto}
+  /* Collapsed by default: the map is the app, the keyboard is a visitor. */
+  .dock.shut .kinds,.dock.shut .crow{display:none}
+  .dock.shut .here{margin-bottom:0}
+  .opener{display:none;align-items:center;gap:9px;width:100%;margin-top:8px;
+    padding:12px 14px;border-radius:12px;border:1px solid var(--edge);
+    background:rgba(15,23,35,.92);color:var(--faint);
+    font-family:var(--ui);font-weight:300;font-size:14px;text-align:left}
+  .dock.shut .opener{display:flex}
+  .opener:hover{border-color:rgba(111,243,206,.4);color:var(--soft)}
+  .opener .plus{width:22px;height:22px;border-radius:7px;flex:none;display:grid;place-items:center;
+    background:rgba(111,243,206,.14);border:1px solid rgba(111,243,206,.4);color:var(--glow);
+    font-family:var(--mono);font-size:13px;line-height:1}
+  .shutBtn{width:38px;height:42px;border-radius:11px;flex:none;display:grid;place-items:center;
+    color:var(--faint)}
+  .shutBtn:hover{color:var(--text)}
+  .dock.shut .shutBtn{display:none}
+
   .kinds{display:flex;gap:5px;margin-bottom:8px}
   .kind{flex:1;padding:7px 3px;border-radius:8px;border:1px solid var(--edge);text-align:center;
     font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.05em;color:var(--faint)}
@@ -137,7 +156,7 @@
   .send:disabled{opacity:.3}
 
   /* ---- lists ---- */
-  .list{flex:1;overflow-y:auto;padding:64px 11px 78px}
+  .list{flex:1;overflow-y:auto;padding:12px 11px 16px}
   .ch{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:12px;
     border-radius:13px;border:1px solid var(--edge);margin-bottom:8px;
     background:linear-gradient(165deg,rgba(20,32,44,.7),rgba(9,14,22,.7))}
@@ -152,6 +171,37 @@
   .chs .cnt{color:var(--c);font-weight:700}
   .chs .far{color:var(--faint);margin-top:3px}
   .bonus{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:.1em;margin-top:3px}
+
+  /* ---- first run ---- */
+  .slides{flex:1;display:flex;flex-direction:column;justify-content:center;padding:30px 24px}
+  .slide{display:none;animation:in .45s cubic-bezier(.2,.9,.3,1) both}
+  .slide.on{display:block}
+  .slide .ico{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;
+    background:rgba(111,243,206,.1);border:1px solid rgba(111,243,206,.3);color:var(--glow);
+    margin-bottom:20px}
+  .slide h3{font-family:var(--disp);font-weight:800;font-size:27px;letter-spacing:-.03em;
+    margin:0 0 12px;line-height:1.1}
+  .slide p{font-family:var(--ui);font-weight:300;font-size:16px;line-height:1.55;color:var(--soft);margin:0}
+  .slide p b{color:var(--text);font-weight:500}
+  .dots{display:flex;gap:6px;justify-content:center;margin-bottom:14px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:var(--edge)}
+  .dots i.on{background:var(--glow);width:18px;border-radius:3px}
+  .skip{display:block;width:100%;text-align:center;margin-top:10px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--faint)}
+
+  /* one tip, at the moment it is useful, then never again */
+  .coach{position:absolute;left:11px;right:11px;bottom:112px;z-index:22;
+    display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border-radius:13px;
+    background:rgba(20,32,44,.98);border:1px solid rgba(111,243,206,.4);
+    box-shadow:0 16px 40px -18px #000;
+    opacity:0;transform:translateY(10px);transition:.3s;pointer-events:none}
+  .coach.on{opacity:1;transform:none;pointer-events:auto}
+  .coach .cico{width:22px;height:22px;border-radius:7px;flex:none;display:grid;place-items:center;
+    background:rgba(111,243,206,.15);color:var(--glow);font-size:12px}
+  .coach p{margin:0;font-family:var(--ui);font-weight:300;font-size:13.5px;line-height:1.45;flex:1}
+  .coach p b{color:var(--text);font-weight:500}
+  .coach button{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--glow);
+    flex:none;padding:4px 6px;align-self:center}
 
   /* ---- safety ---- */
   .flag{margin-left:auto;color:var(--faint);font-size:11px;padding:4px 6px;border-radius:6px;line-height:1}
@@ -205,8 +255,8 @@
     font-size:14.5px;line-height:1.7}
 
   /* ---- tabs ---- */
-  .tabs{position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;
-    border-top:1px solid var(--edge);background:rgba(4,6,11,.96);backdrop-filter:blur(10px)}
+  .tabs{flex:none;position:relative;z-index:10;display:flex;
+    border-top:1px solid var(--edge);background:rgba(4,6,11,.98)}
   .tab{flex:1;padding:9px 0 11px;display:flex;flex-direction:column;align-items:center;gap:3px;
     color:var(--faint);position:relative}
   .tab.on{color:var(--text)}
@@ -291,10 +341,14 @@
       <canvas id="map"></canvas>
       <div class="qbox" id="qbox"></div>
       <div class="bubs" id="bubs"></div>
-      <div class="dock">
+      <div class="dock shut" id="dock">
         <div class="here" id="here"></div>
+        <button class="opener" id="opener"><span class="plus">+</span><span id="openerTxt">Say something here</span></button>
         <div class="kinds" id="kinds"></div>
         <div class="crow">
+          <button class="shutBtn" id="shutBtn" title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
           <input id="say" maxlength="180" placeholder="say something to this room…">
           <button class="send" id="sendBtn" disabled>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
@@ -339,28 +393,30 @@
       <div class="blooms" id="bloomList"></div>
     </div><div class="sfoot"><button class="cta" id="bloomClose">Close</button></div></div>
 
-    <div class="sheet on" id="intro"><div class="sbody">
-      <h3>Nobody here has a name.</h3>
-      <p class="lede">Closer shows you what people around you are saying right now. Five rules, then you're in.</p>
-      <div class="rule"><span class="rn">1</span><div><h4>The map shows places, never people</h4>
-        <p>Rooms, gates, the library steps &mdash; those are drawn, named and glowing. <b>People are only ever a distance.</b> There is no dot for a person anywhere in this app.</p></div></div>
-      <div class="rule"><span class="rn">2</span><div><h4>Distance, never direction</h4>
-        <p>Every post says how far away its writer is, rounded to ten metres. You are never told which way, so you can't walk towards anyone. <b>Finding someone isn't blocked &mdash; it's information the app never has.</b></p></div></div>
-      <div class="rule"><span class="rn">3</span><div><h4>Walk into a room to talk in it</h4>
-        <p>Each place on campus is its own channel. You can only post to the room you're actually standing in, and rooms nobody has posted from go <b>dark</b> &mdash; light one up and it's worth triple.</p></div></div>
-      <div class="rule"><span class="rn">4</span><div><h4>Only you can reveal yourself</h4>
-        <p>Tap <b>reveal</b> on your own post and your name appears on that one post. Nobody can ever do it for you, and no amount of walking closer will do it either.</p></div></div>
-      <div class="rule"><span class="rn">5</span><div><h4>Glow is what you give</h4>
-        <p>People brighten posts they like, and that light goes to whoever wrote it. Go quiet and it fades. It resets every dawn, so nobody builds a permanent reputation.</p></div></div>
-      <div class="rule"><span class="rn">6</span><div><h4>Your inbox keeps the same strangers</h4>
-        <p>Reply to anyone and that thread <b>stays</b>. They get a two-word label so you can tell your conversations apart, and you can pick <b>what they call you</b> &mdash; a different name for every person if you want. None of it shows on the map or on a post. Nothing joins them up.</p></div></div>
-      <div class="rule"><span class="rn">7</span><div><h4>Circles: your own anonymous groups</h4>
-        <p>Make a group for anything &mdash; your floor, a subject you hate, the people awake at 3am. Share the four-letter code out loud and whoever you give it to gets in. <b>Inside a circle you get a two-word alias so people can follow what you say &mdash; and it only exists in that circle.</b> The same person is a different stranger in every group.</p></div></div>
-      <div class="rule"><span class="rn">8</span><div><h4>Report anything, block anyone</h4>
-        <p>Every post has a <b>⚑</b>. Reporting is anonymous in both directions &mdash; they are never told, and you never learn who they were. Three reports hide a post immediately. Blocking works even though nobody has a name: the server knows who wrote it and simply stops showing you their posts, without telling either of you anything.</p></div></div>
-      <div class="big"><h4>If something is wrong</h4>
-        <p>Post it as <b style="color:#E4EFF4">HELP</b>. It reaches the whole campus instead of one room, stays up for half an hour, and everyone can tap <b style="color:#E4EFF4">I'm coming</b> &mdash; so you can watch help move toward you without any of you knowing who the others are.</p></div>
-    </div><div class="sfoot"><button class="cta" id="introGo">I understand &mdash; let me in</button></div></div>
+    <div class="sheet on" id="intro">
+      <div class="slides">
+        <div class="slide on" data-s="0">
+          <div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="11" opacity=".45"/></svg></div>
+          <h3>See what people near you are saying.</h3>
+          <p>No names, no profiles, no photos. Just what is being said <b>around you, right now</b> — and how far away each person is.</p>
+        </div>
+        <div class="slide" data-s="1">
+          <div class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 21s-7-5.2-7-10a7 7 0 1 1 14 0c0 4.8-7 10-7 10Z"/><circle cx="12" cy="11" r="2.4"/></svg></div>
+          <h3>Every place is its own chat.</h3>
+          <p>The library, the mess, your block&rsquo;s roof. <b>Walk into a place to talk in it.</b> Somewhere nobody has spoken tonight is worth three times as much — go light it up.</p>
+        </div>
+        <div class="slide" data-s="2">
+          <div class="ico" style="background:rgba(255,59,92,.12);border-color:rgba(255,59,92,.35);color:var(--help)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4"/><path d="M12 17v.1"/></svg></div>
+          <h3>And nobody can find you.</h3>
+          <p>People see <b>how far</b> you are, never which direction — so you cannot be walked to. If something is wrong, post <b>HELP</b> and everyone nearby can come, without any of you knowing who the others are.</p>
+        </div>
+      </div>
+      <div class="sfoot">
+        <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
+        <button class="cta" id="introGo">Next</button>
+        <button class="skip" id="introSkip">Skip</button>
+      </div>
+    </div>
 
     <div class="sheet" id="reportSheet"><div class="sbody" id="rpBody"></div>
       <div class="sfoot"><button class="cta" id="rpCancel" style="background:none;border-color:var(--edge);color:var(--soft)">Cancel</button></div></div>
@@ -375,6 +431,28 @@
       </div>
     </div><div class="sfoot"><button class="cta" id="rnCancel" style="background:none;border-color:var(--edge);color:var(--soft)">Cancel</button></div></div>
 
+    <div class="sheet" id="rules"><div class="sbody">
+      <h3>How Closer works</h3>
+      <p class="lede">Everything, in one place. You do not need to read this to use the app.</p>
+      <div class="rule"><span class="rn">1</span><div><h4>Places are public, people are not</h4>
+        <p>The map draws rooms, not people. <b>You see how far someone is, never which direction</b> — so nobody can be walked to. It is not a rule we enforce; it is information the app never has.</p></div></div>
+      <div class="rule"><span class="rn">2</span><div><h4>Walk into a room to talk in it</h4>
+        <p>Each place is its own chat. Rooms nobody has posted in tonight are <b>dark</b> — speaking there first is worth triple.</p></div></div>
+      <div class="rule"><span class="rn">3</span><div><h4>Only you can reveal yourself</h4>
+        <p>Tap <b>reveal</b> on your own post and your name appears on that one post. Nobody can do it for you.</p></div></div>
+      <div class="rule"><span class="rn">4</span><div><h4>Your inbox keeps the same strangers</h4>
+        <p>Threads stay. Each person gets a made-up two-word name so you can tell them apart, and <b>you choose what they call you</b> — a different name per person if you like. None of it shows on the map.</p></div></div>
+      <div class="rule"><span class="rn">5</span><div><h4>Circles are your own groups</h4>
+        <p>Make one for anything and share the four-letter code out loud. Inside, you get an alias that <b>exists only in that circle</b>.</p></div></div>
+      <div class="rule"><span class="rn">6</span><div><h4>Report anything, block anyone</h4>
+        <p>Every post has a <b>⚑</b>. Reporting is anonymous both ways. Three reports hide a post at once. Blocking works even though nobody has a name.</p></div></div>
+      <div class="rule"><span class="rn">7</span><div><h4>Nothing is kept</h4>
+        <p>Posts are deleted within the minute, not archived. There is no history to scroll, leak or hand over.</p></div></div>
+      <div class="big"><h4>If something is wrong</h4>
+        <p>Post it as <b style="color:#E4EFF4">HELP</b>. It reaches the whole campus instead of one room, stays up for half an hour, and everyone can tap <b style="color:#E4EFF4">I&rsquo;m coming</b> — so you can watch help move toward you without any of you knowing who the others are.</p></div>
+    </div><div class="sfoot"><button class="cta" id="rulesClose">Close</button></div></div>
+
+    <div class="coach" id="coach"></div>
     <div class="toast" id="toast"></div>
   </div></div></div>
 
@@ -475,7 +553,7 @@ const REPLY=["i'm near there, stay put","honestly same","walking that way now","
 const S={t:0,me:{x:110,y:158},posts:[],chats:[],open:null,kind:"say",
   glow:34,streak:6,near:38,bloom:"tonight",room:null,carry:null,lit:new Set(["quad"]),
   q:{text:pick(QUESTIONS),answers:[],count:142,mine:null},
-  floats:[], typing:0, circles:[], circle:null, cmode:"list", cwho:"code",
+  floats:[], typing:0, circles:[], circle:null, cmode:"list", cwho:"code", sweep:0,
   blocked:new Set(), blocks:0, reports:0};
 let pid=0;
 
@@ -540,11 +618,16 @@ function draw(){
     ctx.fillText(lit?`${live} live`:"DARK · ×3",X,Y+8);
   });
 
-  if(!RM){const p=(S.t*.4)%1;ctx.beginPath();ctx.arc(cx,cy,p*330*SC,0,7);
-    ctx.strokeStyle=`${b.c}${Math.round((1-p)*70).toString(16).padStart(2,"0")}`;
-    ctx.lineWidth=1.4;ctx.stroke();}
+  // A ring that pulses forever is decoration. One that pulses when a post
+  // lands is news — so it only runs on a real arrival, then stops.
+  if(!RM && S.sweep>0){
+    const p=1-S.sweep;
+    ctx.beginPath();ctx.arc(cx,cy,p*330*SC,0,7);
+    ctx.strokeStyle=`${b.c}${Math.round((1-p)*90).toString(16).padStart(2,"0")}`;
+    ctx.lineWidth=1.4;ctx.stroke();
+  }
 
-  const halo=18+(S.glow/100)*22+(RM?0:Math.sin(S.t*1.7)*2.5);
+  const halo=18+(S.glow/100)*22;
   const yg=ctx.createRadialGradient(cx,cy,1,cx,cy,halo);
   yg.addColorStop(0,"rgba(170,235,255,.55)");yg.addColorStop(1,"rgba(150,225,255,0)");
   ctx.beginPath();ctx.arc(cx,cy,halo,0,7);ctx.fillStyle=yg;ctx.fill();
@@ -563,12 +646,35 @@ function draw(){
 }
 
 /* ---------- floating posts ---------- */
-function bubbles(){
+function layout(){
+  const q=$("#qbox"), d=$(".dock"), b=$("#bubs"), app=$("#app");
+  if(!q||!d||!b||!app)return;
+  const top=q.offsetTop+q.offsetHeight+9;
+  b.style.top=top+"px";
+  b.style.height=Math.max(90,app.clientHeight-top-d.offsetHeight-52)+"px";
+}
+
+let bubSig="";
+function tickLives(){
+  const box=$("#bubs");
+  if(!box||!box.querySelectorAll)return;
+  box.querySelectorAll("[data-life]").forEach(el=>{
+    const p=S.posts.find(x=>x.id===+el.dataset.life);
+    if(!p)return;
+    el.style.width=clamp((p.life-(S.t-p.born))/p.life,0,1)*100+"%";
+  });
+}
+
+function bubbles(force){
   const box=$("#bubs"), here=S.posts.filter(p=>
     !S.blocked.has(p.id) && (p.room===(S.room&&S.room.id)||p.kind==="help")).slice(0,4);
+  const sig=here.map(p=>`${p.id}:${p.bright}:${p.myreact||""}:${p.myvote}:${p.coming}:${p.iam}:${p.revealed}:${p.hops}`).join("|");
+  if(!force && sig===bubSig){ tickLives(); return; }
+  bubSig=sig;
+
   box.innerHTML=here.map((p,i)=>{
     const k=KINDS[p.kind], rem=p.life-(S.t-p.born);
-    return `<div class="bub ${p.kind==="help"?"urgent":""}" style="--c:${k.c};left:${18+(i%2)*52}%;top:${218+i*118}px">
+    return `<div class="bub ${p.kind==="help"?"urgent":""}" style="--c:${k.c};">
       <div class="bin">
         <div class="btop"><span class="tag">${k.label}${p.carried?" · CARRIED":""}</span>
           <span class="dist">${p.mine?"you":dLab(p.metres)}</span></div>
@@ -592,7 +698,7 @@ function bubbles(){
         </div>
         <div class="rx">${REACTS.map(e=>`<button class="${p.myreact===e?"on":""}" data-rx="${p.id}:${e}">${e}${p.react[e]?`<span class="cnt">${p.react[e]}</span>`:""}</button>`).join("")}</div>
         ${p.hops?`<div class="hops">✦ CARRIED THROUGH ${p.hops} ROOM${p.hops>1?"S":""}</div>`:""}
-        <div class="life"><i style="width:${clamp(rem/p.life,0,1)*100}%"></i></div>
+        <div class="life"><i data-life="${p.id}" style="width:${clamp(rem/p.life,0,1)*100}%"></i></div>
       </div></div>`;
   }).join("");
   box.querySelectorAll("[data-b]").forEach(e=>e.onclick=()=>brighten(+e.dataset.b));
@@ -605,6 +711,7 @@ function bubbles(){
   box.querySelectorAll("[data-vt]").forEach(e=>e.onclick=()=>{
     const [id,ix]=e.dataset.vt.split(":"); vote(+id,+ix);});
   box.querySelectorAll("[data-fl]").forEach(e=>e.onclick=()=>flagPost(+e.dataset.fl));
+  layout();
 }
 function brighten(id){const p=S.posts.find(x=>x.id===id);if(!p||p.mybright)return;
   p.mybright=true;p.bright++;p.life+=6;
@@ -694,6 +801,10 @@ function setRoom(r){
         :S.typing?S.typing+" TYPING HERE…":S.posts.filter(p=>p.room===r.id).length+" LIVE"}</span>`
     : `<span class="pin" style="background:#5E7E96;box-shadow:none"></span><b>Between rooms</b><span>WALK INTO ONE TO TALK</span>`;
   $("#say").disabled=!r; $("#say").placeholder=r?KINDS[S.kind].hint:"walk into a room to talk…";
+  const op=$("#openerTxt");
+  if(op)op.textContent=r?(lit?`Say something in ${r.n}`:`Be the first to speak here`)
+                       :"Walk into a room to talk";
+  if(!r)$("#dock").classList.add("shut");
   rooms();
 }
 
@@ -822,7 +933,7 @@ function renderReport(){
   $("#rpBlock").onclick=()=>{
     const p=S.posts.find(x=>x.id===flagTarget);
     if(p){S.blocked.add(p.id);S.blocks++;}
-    closeReport(); bubbles();
+    closeReport(); bubbles(true);
     toast("blocked · you will not see them again, and they are not told");};
 }
 function closeReport(){$("#reportSheet").classList.remove("on");flagTarget=null;}
@@ -888,7 +999,9 @@ function go(n){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",
     t.dataset.go===n||(n==="thread"&&t.dataset.go===(S.circle?"ci":"rep"))));
   $("#hud").style.display=(n==="map")?"flex":"none";
-  if(n==="ch")rooms(); if(n==="rep")replies(); if(n==="ci")circles();
+  if(n==="ch"){rooms();coach("rooms","Every place on campus is a separate chat. <b>Dark ones are worth triple</b> — nobody has spoken there tonight.","🗺️");}
+  if(n==="rep"){replies();coach("inbox","Threads stay here. Each person gets a made-up two-word name so you can tell them apart &mdash; <b>it is not their real name</b>.","💬");}
+  if(n==="ci"){circles();coach("circles","Make a group for anything. Share the <b>4-letter code</b> out loud — whoever you give it to gets in.","👥");}
 }
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>go(t.dataset.go));
 function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");
@@ -928,16 +1041,60 @@ sb.onclick=()=>{
   post(S.kind,say.value.trim(),true);
   if(dark){S.lit.add(S.room.id);addGlow(12);toast("✦ you lit this room · ×3 glow");}
   else toast(S.kind==="help"?"sent across the whole campus":"posted anonymously");
-  say.value="";sb.disabled=true;bubbles();setRoom(S.room);};
+  coach("flag","See something that should not be here? <b>Tap the ⚑</b> on it. They are never told who reported them.","⚑");
+  say.value="";sb.disabled=true;bubbles(true);setRoom(S.room);shutComposer();};
 say.onkeydown=e=>{if(e.key==="Enter"&&!sb.disabled)sb.click();};
 const rep=$("#rep"),rb=$("#repBtn");
 rep.oninput=()=>rb.disabled=!rep.value.trim();
 rb.onclick=()=>{send(rep.value);rep.value="";rb.disabled=true;};
 rep.onkeydown=e=>{if(e.key==="Enter"&&rep.value.trim())rb.click();};
 
+function openComposer(){
+  if(!S.room){toast("walk into a room to talk");return;}
+  $("#dock").classList.remove("shut");
+  layout(); setTimeout(()=>$("#say").focus(),60);
+}
+function shutComposer(){
+  $("#dock").classList.add("shut");
+  $("#say").value=""; $("#sendBtn").disabled=true; layout();
+}
+/* ---------- learning it by using it ----------
+   Eight rules on one screen is a wall nobody reads. Three ideas up front, then
+   one sentence at the exact moment it becomes useful — and never again. */
+const taught=new Set();
+let coachTimer=null;
+function coach(id,html,icon){
+  if(taught.has(id))return;
+  taught.add(id);
+  const c=$("#coach");
+  c.innerHTML=`<span class="cico">${icon||"✦"}</span><p>${html}</p><button id="coachOk">GOT IT</button>`;
+  c.classList.add("on");
+  $("#coachOk").onclick=()=>c.classList.remove("on");
+  clearTimeout(coachTimer);
+  coachTimer=setTimeout(()=>c.classList.remove("on"),9000);
+}
+
+let slide=0;
+function showSlide(){
+  document.querySelectorAll(".slide").forEach(el=>el.classList.toggle("on",+el.dataset.s===slide));
+  document.querySelectorAll("#dots i").forEach((el,i)=>el.classList.toggle("on",i===slide));
+  $("#introGo").textContent = slide===2 ? "Start" : "Next";
+}
+function startApp(){
+  $("#intro").classList.remove("on");
+  setTimeout(()=>coach("walk","<b>Tap anywhere on the map</b> to walk. The place you are standing in is the one you can talk in.","🚶"),700);
+}
+$("#introGo").onclick=()=>{ if(slide<2){slide++;showSlide();} else startApp(); };
+$("#introSkip").onclick=startApp;
+
+$("#opener").onclick=openComposer;
+$("#shutBtn").onclick=shutComposer;
+$("#say").addEventListener("keydown",e=>{if(e.key==="Escape")shutComposer();});
+
 $("#rpCancel").onclick=closeReport;
 $("#introGo").onclick=()=>$("#intro").classList.remove("on");
-$("#helpBtn").onclick=()=>$("#intro").classList.add("on");
+$("#helpBtn").onclick=()=>$("#rules").classList.add("on");
+$("#rulesClose").onclick=()=>$("#rules").classList.remove("on");
 $("#bloomChip").onclick=()=>$("#bloomSheet").classList.add("on");
 $("#bloomClose").onclick=()=>$("#bloomSheet").classList.remove("on");
 $("#streakChip").onclick=()=>toast("6 nights in a row · finish one room a night to keep it");
@@ -953,7 +1110,12 @@ $("#s-map").onclick=e=>{
       np.carried=true;np.hops=(p.hops||0)+1;np.react=p.react;np.poll=p.poll;np.votes=p.votes;
       addGlow(4+np.hops*2);
       toast(`dropped here · carried through ${np.hops} room${np.hops>1?"s":""}`);}
-    else if(nr)toast("you're in "+nr.n);
+    else if(nr){
+      toast("you're in "+nr.n);
+      if(!S.lit.has(nr.id))
+        coach("dark","Nobody has spoken here tonight. <b>Say the first thing</b> and it is worth triple.","🌑");
+      else coach("room","This is the <b>"+nr.n+"</b> chat. Only people standing here can talk in it.","📍");
+    }
   }
 };
 
@@ -963,30 +1125,37 @@ function frame(now){
   const dt=Math.min((now-last)/1000,.05);last=now;S.t+=dt;
   S.glow=clamp(S.glow-.14*dt,0,100);
   S.floats=S.floats.filter(f=>S.t-f.t<f.d);
-  if(Math.random()<dt*.35)S.typing=Math.round(R(0,3.4));
+  if(Math.random()<dt*.05){const n=Math.round(R(0,3.4));
+    if(n!==S.typing){S.typing=n;setRoom(S.room);}}
   for(let i=S.posts.length-1;i>=0;i--){const p=S.posts[i];
     if(!p.mine)p.metres=clamp(p.metres+R(-14,14)*dt,12,600);
     if(p.kind==="help"&&!p.mine&&Math.random()<dt*.06)p.coming++;
     if(S.t-p.born>=p.life)S.posts.splice(i,1);}
+  if(S.posts.some(p=>p.kind==="help"&&!p.mine))
+    coach("help","Someone nearby needs help. <b>Tap I&rsquo;M COMING</b> and they can see help moving toward them.","🆘");
   if(S.posts.length<9&&Math.random()<dt*.7){
-    const s=pick(SEED), r=pick(ROOMS);
-    post(s[0],s[1],false,r.id); if(Math.random()<.4)S.lit.add(r.id);}
+    const sd=pick(SEED), r=pick(ROOMS);
+    post(sd[0],sd[1],false,r.id); if(Math.random()<.4)S.lit.add(r.id);
+    S.sweep=1;}                                  // one sweep per arrival
+  S.sweep=Math.max(0,S.sweep-dt*.55);
   $("#glowN").textContent=Math.round(S.glow);
   $("#glowBar").style.width=S.glow+"%";
   $("#nearN").textContent=S.near;
   $("#nearBar").style.width=clamp(S.near/70*100,0,100)+"%";
   $("#tierLbl").textContent=S.carry?"CARRYING A LINE":"NEARBY";
-  if(Math.floor(S.t*2)!==Math.floor((S.t-dt)*2)){bubbles();
-    if(!S.q.mine&&Math.random()<.25){S.q.count++;renderQ();}}
+  bubbles();                                   // cheap: rebuilds only on real change
+  if(Math.floor(S.t*4)!==Math.floor((S.t-dt)*4))tickLives();
+  if(Math.floor(S.t/6)!==Math.floor((S.t-dt)/6)){
+    if(!S.q.mine){S.q.count++;renderQ();layout();}}
   draw();requestAnimationFrame(frame);
 }
 
-size();addEventListener("resize",size);
+size();addEventListener("resize",()=>{size();layout();});
 SEED.slice(0,5).forEach((s,i)=>post(s[0],s[1],false,ROOMS[i%ROOMS.length].id));
 S.lit.add("lib");S.lit.add("mess");
 S.circles=SEED_CIRCLES.map(c=>({...c}));
 S.q.answers=ANSWERS.slice(0,4).map(t=>({t,mine:false}));
-bloomList();setRoom(roomAt(S.me));replies();circles();bubbles();renderQ();
+bloomList();setRoom(roomAt(S.me));replies();circles();bubbles();renderQ();layout();
 setInterval(()=>{S.near=clamp(S.near+Math.round(R(-3,3.4)),18,66);},2600);
 requestAnimationFrame(frame);
 })();
