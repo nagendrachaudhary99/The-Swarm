@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show OAuthProvider;
 
 import '../data/swarm_api.dart';
 import '../theme.dart';
@@ -27,16 +29,30 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
   _Step _step = _Step.email;
   bool _busy = false;
   String? _error;
+  StreamSubscription<String>? _refusals;
 
   @override
   void initState() {
     super.initState();
     _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 6))
       ..repeat();
+
+    // A social login is refused *after* the round trip, not before it — the
+    // gate never sees the address until Google hands it over. Without this the
+    // screen would simply reappear, looking broken rather than strict.
+    _refusals = SwarmApi.instance.refusals.listen((email) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = '$email is not a campus address. The Swarm is one college '
+            'only — sign in with the account that college gave you.';
+      });
+    });
   }
 
   @override
   void dispose() {
+    _refusals?.cancel();
     _pulse.dispose();
     _email.dispose();
     _code.dispose();
@@ -70,6 +86,27 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _google() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await SwarmApi.instance.signInWith(OAuthProvider.google);
+      // On web the page is gone by now. On mobile the session arrives through
+      // the deep link and the root rebuilds itself, so there is nothing to do
+      // here but stop spinning if the sheet was dismissed.
+      if (mounted) setState(() => _busy = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = 'Google would not open.\n\n$e';
+        });
+      }
     }
   }
 
@@ -135,6 +172,12 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
                         style: Swarm.voice(size: 14.5, color: Swarm.fog),
                       ),
                       const SizedBox(height: 26),
+                      if (!onCode) ...[
+                        _googleButton(),
+                        const SizedBox(height: 18),
+                        _or(),
+                        const SizedBox(height: 18),
+                      ],
                       if (!onCode) _emailField() else _codeField(),
                       if (_error != null) ...[
                         const SizedBox(height: 12),
@@ -179,6 +222,43 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
       ),
     );
   }
+
+  /// The quiet option, listed first because it is the one that works without
+  /// the project owning a mail server. Deliberately not louder than the door
+  /// beside it: an address typed by hand is still the plainer promise.
+  Widget _googleButton() => GestureDetector(
+        onTap: _busy ? null : _google,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            color: Swarm.foam.withValues(alpha: .05),
+            border: Border.all(color: Swarm.line),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const _GoogleMark(),
+              const SizedBox(width: 11),
+              Text('CONTINUE WITH GOOGLE',
+                  style: Swarm.data(size: 10.5, color: Swarm.fog, tracking: 2)),
+            ],
+          ),
+        ),
+      );
+
+  Widget _or() => Row(
+        children: [
+          Expanded(child: Container(height: 1, color: Swarm.line)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text('OR',
+                style: Swarm.data(size: 9, color: Swarm.murk, tracking: 2)),
+          ),
+          Expanded(child: Container(height: 1, color: Swarm.line)),
+        ],
+      );
 
   Widget _emailField() => TextField(
         controller: _email,
@@ -244,6 +324,53 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
                   style: Swarm.data(size: 10.5, color: Swarm.plankton, tracking: 2.6)),
         ),
       );
+}
+
+/// Google's mark, drawn rather than fetched: one more asset is one more thing
+/// that can fail to load on a dark screen at the moment someone is deciding
+/// whether this app is real.
+class _GoogleMark extends StatelessWidget {
+  const _GoogleMark();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 15,
+        height: 15,
+        child: CustomPaint(painter: _GPainter()),
+      );
+}
+
+class _GPainter extends CustomPainter {
+  static const _blue = Color(0xFF4285F4);
+  static const _green = Color(0xFF34A853);
+  static const _yellow = Color(0xFFFBBC05);
+  static const _red = Color(0xFFEA4335);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = Offset.zero & size;
+    final stroke = size.width * .27;
+    final arc = Rect.fromCircle(
+      center: r.center,
+      radius: (size.width - stroke) / 2,
+    );
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+
+    // Four quadrants, then the bar that turns the ring into a G.
+    canvas.drawArc(arc, -0.45, 1.30, false, p..color = _red);
+    canvas.drawArc(arc, 0.85, 1.55, false, p..color = _yellow);
+    canvas.drawArc(arc, 2.40, 1.55, false, p..color = _green);
+    canvas.drawArc(arc, 3.95, 1.50, false, p..color = _blue);
+    canvas.drawRect(
+      Rect.fromLTRB(r.center.dx, r.center.dy - stroke / 2, r.right, r.center.dy + stroke / 2),
+      Paint()..color = _blue,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GPainter old) => false;
 }
 
 /// A slow sweep behind the door, so the first screen already shows what the

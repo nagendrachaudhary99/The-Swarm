@@ -45,6 +45,15 @@ class CampusEmailRejected implements Exception {
   String toString() => 'That address is not a campus one.';
 }
 
+/// A token pulled out of a pasted magic link, with the kind Supabase stamped
+/// on it. The kind matters: verifying a `signup` hash as a `magiclink` is
+/// rejected exactly the way a wrong code is.
+class _LinkToken {
+  const _LinkToken(this.hash, this.type);
+  final String hash;
+  final OtpType type;
+}
+
 /// Everything the app is allowed to ask the database.
 ///
 /// Note what is absent: there is no `getWhisperLocation`, no `getUsers`, no
@@ -69,8 +78,41 @@ class SwarmApi {
     );
     final api = SwarmApi._(Supabase.instance.client);
     _instance = api;
+    api._guardTheDoor();
     return api;
   }
+
+  /// One place where "you are in" becomes true, whichever door was used.
+  ///
+  /// A social login never passes through [sendCode], so the domain check would
+  /// simply not happen — Google will happily vouch for any address alive. We
+  /// therefore re-apply the same rule to the session itself: if the address is
+  /// not a campus one the session is thrown away immediately, before any
+  /// screen behind the gate is built.
+  void _guardTheDoor() {
+    _db.auth.onAuthStateChange.listen((state) async {
+      if (state.event != AuthChangeEvent.signedIn) return;
+      final u = state.session?.user;
+      if (u == null) return;
+
+      final email = u.email;
+      if (email != null && !isCampusEmail(email)) {
+        await _db.auth.signOut();
+        _refused.add(email);
+        return;
+      }
+      // A convenience row, not a gate — never trade a good session for it.
+      try {
+        await _db.from('profiles').upsert({'id': u.id});
+      } catch (_) {}
+    });
+  }
+
+  /// Addresses turned away at the door after the fact. The gate listens so a
+  /// social login that lands on a personal mailbox says why, instead of
+  /// bouncing back to the sign-in screen with no explanation.
+  final _refused = StreamController<String>.broadcast();
+  Stream<String> get refusals => _refused.stream;
 
   User? get user => _db.auth.currentUser;
   bool get signedIn => user != null;
@@ -108,9 +150,12 @@ class SwarmApi {
     return 'closer://auth-callback';
   }
 
-  /// Send a six-digit code. Deliberately not a clickable link: deep-linking a
+  /// Send a one-time code. Deliberately not a clickable link: deep-linking a
   /// magic link into iOS, Android and web all at once is three separate
-  /// configuration problems, and a typed code is none of them.
+  /// configuration problems, and a typed code is none of them. The length is
+  /// the project's `mailer_otp_length` (8 today), so nothing here counts
+  /// digits — `verifyCode` strips everything that is not one and sends the
+  /// rest.
   Future<void> sendCode(String email) async {
     final e = email.trim().toLowerCase();
     if (!isCampusEmail(e)) {
@@ -123,36 +168,79 @@ class SwarmApi {
     );
   }
 
+  /// The door that needs no mail at all.
+  ///
+  /// Nothing is sent, nothing is typed, and none of it touches the project's
+  /// mail settings — which is the entire point: a free project cannot put a
+  /// code in an email, so the sturdiest login here is the one that never asks
+  /// for one. On web this leaves the page and comes back with the session in
+  /// the URL, where `detectSessionInUri` picks it up and the root rebuilds
+  /// itself signed in.
+  Future<void> signInWith(OAuthProvider provider) =>
+      _db.auth.signInWithOAuth(provider, redirectTo: _redirectTo);
+
   /// Accepts whichever thing the email actually contained.
   ///
-  /// Supabase's default template ships a *link*, not a code, and changing that
-  /// is a dashboard edit nobody should need to make before their first login.
-  /// So paste either: a numeric code, or the whole link — we pull the token
-  /// hash straight out of it.
+  /// If the templates carry `{{ .Token }}` this is a six-digit code and the
+  /// second branch runs. If they were left as Supabase ships them it is a
+  /// *link*, so we pull the token hash out of it — along with its `type`,
+  /// which is `signup` on a first login and `magiclink` afterwards. Assuming
+  /// one of those is why a brand-new address used to be refused.
   Future<void> verifyCode(String email, String input) async {
     final raw = input.trim();
-    final hash = _tokenHashIn(raw);
+    final e = email.trim().toLowerCase();
+    final link = _tokenIn(raw);
 
-    if (hash != null) {
-      await _db.auth.verifyOTP(tokenHash: hash, type: OtpType.magiclink);
+    if (link != null) {
+      try {
+        await _db.auth.verifyOTP(tokenHash: link.hash, type: link.type);
+      } on AuthException {
+        // The link said one thing and the server meant the other — which
+        // happens when a template was hand-edited. One retry, then it really
+        // is a bad token.
+        final other =
+            link.type == OtpType.signup ? OtpType.magiclink : OtpType.signup;
+        await _db.auth.verifyOTP(tokenHash: link.hash, type: other);
+      }
     } else {
       await _db.auth.verifyOTP(
-        email: email.trim().toLowerCase(),
+        email: e,
         token: raw.replaceAll(RegExp(r'[^0-9]'), ''),
         type: OtpType.email,
       );
     }
-    await _db.from('profiles').upsert({'id': user!.id});
+
+    // The profile row is not written here. `_guardTheDoor` does it for every
+    // door at once, so a code and a social login cannot drift apart.
   }
 
-  /// Magic links carry `?token=<hash>&type=magiclink`. Some clients rewrite
-  /// them through a tracker, so we look for the parameter rather than trusting
-  /// the host.
-  static String? _tokenHashIn(String s) {
-    if (!s.contains('token')) return null;
-    final m = RegExp(r'[?&](?:token|token_hash)=([A-Za-z0-9_-]+)').firstMatch(s);
-    return m?.group(1);
+  /// Magic links carry `?token=<hash>&type=<kind>`. Some clients rewrite them
+  /// through a tracker, so we look for the parameters rather than trusting the
+  /// host. A bare hash pasted on its own counts too: nothing else that long is
+  /// free of digits.
+  static _LinkToken? _tokenIn(String s) {
+    final m = RegExp(r'[?&](?:token_hash|token)=([A-Za-z0-9_-]+)').firstMatch(s);
+    if (m != null) {
+      final kind = RegExp(r'[?&]type=([a-z_]+)').firstMatch(s)?.group(1);
+      return _LinkToken(m.group(1)!, _otpType(kind));
+    }
+    if (RegExp(r'^[A-Za-z0-9_-]{20,}$').hasMatch(s) &&
+        !RegExp(r'^[0-9]+$').hasMatch(s)) {
+      // A hash with no URL around it. We cannot know the kind, and signup is
+      // the one that bites first-time users, so start there.
+      return _LinkToken(s, OtpType.signup);
+    }
+    return null;
   }
+
+  static OtpType _otpType(String? kind) => switch (kind) {
+        'signup' => OtpType.signup,
+        'recovery' => OtpType.recovery,
+        'invite' => OtpType.invite,
+        'email_change' => OtpType.emailChange,
+        'email' => OtpType.email,
+        _ => OtpType.magiclink,
+      };
 
   Future<void> signOut() => _db.auth.signOut();
 
