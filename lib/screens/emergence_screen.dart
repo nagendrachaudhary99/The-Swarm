@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../config.dart';
 import '../data/swarm_api.dart';
 import '../engine/swarm_engine.dart';
 import '../main.dart' show whereAmI;
@@ -8,6 +9,7 @@ import '../models/campus.dart';
 import '../painters/sonar_painter.dart';
 import '../theme.dart';
 import '../widgets/dock.dart';
+import '../widgets/ground.dart';
 import '../widgets/hud.dart';
 import '../widgets/rooms.dart';
 import '../widgets/sheets.dart';
@@ -23,6 +25,11 @@ class EmergenceScreen extends StatefulWidget {
 class _EmergenceScreenState extends State<EmergenceScreen>
     with SingleTickerProviderStateMixin {
   late final SwarmEngine _engine;
+
+  /// Where the phone actually is, once it tells us. Until then the map sits on
+  /// the pilot campus so the ground is never blank.
+  ({double lat, double lon})? _at;
+  double _zoom = 17.4;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
 
@@ -61,7 +68,10 @@ class _EmergenceScreenState extends State<EmergenceScreen>
       final at = await whereAmI();
       await api.beacon(at.lat, at.lon);
       if (!mounted) return;
-      setState(() => _engine.api = api);
+      setState(() {
+        _engine.api = api;
+        _at = at;
+      });
       _showToast('◉ live on campus');
     } catch (e) {
       if (mounted) _showToast('◌ offline · running on the local pool');
@@ -98,10 +108,27 @@ class _EmergenceScreenState extends State<EmergenceScreen>
 
           return Stack(
             children: [
+              // --- the real world, when there is a key for it ---
+              Positioned.fill(
+                child: Ground(
+                  lat: _at?.lat ?? Config.fallbackLat,
+                  lon: _at?.lon ?? Config.fallbackLon,
+                  zoom: _zoom,
+                  onZoom: (z) {
+                    // Cheap enough to hold in state every frame of a pinch;
+                    // the engine only reads it when a sweep actually fires.
+                    _zoom = z;
+                    _engine.zoom = z;
+                  },
+                ),
+              ),
+
               // --- the dark. tap it to walk. ---
               Positioned.fill(
                 child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                  // Translucent, not opaque: the sonar still takes the tap that
+                  // walks you, and the pinch still reaches the map underneath.
+                  behavior: HitTestBehavior.translucent,
                   onTapDown: (d) => _engine.walkTo(tf.toWorld(d.localPosition)),
                   child: CustomPaint(
                     painter: SonarPainter(

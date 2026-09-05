@@ -11,26 +11,32 @@ import '../theme.dart';
 /// range rings, your own marker — is painted by [SonarPainter] either way, so
 /// swapping the ground never touches the rest of the app.
 ///
-/// The map is deliberately non-interactive. Pinching and panning would let
-/// someone line landmarks up against a post's distance and triangulate a
-/// position, which is exactly the thing this app promises never to allow.
+/// Zoom is allowed. Panning and rotation are not, and the difference matters:
+/// triangulation needs a BEARING, and dragging the map away from yourself is
+/// what would eventually supply one. Zooming while pinned to your own position
+/// reveals no direction at all — a post is drawn as a ring around you at every
+/// scale — so it costs nothing and buys the thing the map is for: pull back and
+/// only the loud whispers survive, lean in and the quiet ones appear.
 class Ground extends StatelessWidget {
   const Ground({
     super.key,
     required this.lat,
     required this.lon,
     this.zoom = 17.4,
+    this.onZoom,
   });
 
   final double lat, lon;
   final double zoom;
 
+  /// Fired as the camera settles, so the sweep can be re-cut to match.
+  final ValueChanged<double>? onZoom;
+
   @override
   Widget build(BuildContext context) {
     if (!Config.hasMaps) return const SizedBox.expand();
 
-    return IgnorePointer(
-      child: ColorFiltered(
+    return ColorFiltered(
         // Pull the map down into the app's palette so the overlay stays the
         // brightest thing on screen.
         colorFilter: const ColorFilter.matrix(<double>[
@@ -38,19 +44,21 @@ class Ground extends StatelessWidget {
           0.22, 0.34, 0.28, 0, -10,
           0.26, 0.30, 0.44, 0, 2,
           0, 0, 0, 1, 0,
-        ]),
-        child: GoogleMap(
-          initialCameraPosition: CameraPosition(target: LatLng(lat, lon), zoom: zoom),
-          mapType: MapType.normal,
-          style: _darkStyle,
-          zoomControlsEnabled: false,
-          myLocationButtonEnabled: false,
-          scrollGesturesEnabled: false,
-          zoomGesturesEnabled: false,
-          rotateGesturesEnabled: false,
-          tiltGesturesEnabled: false,
-          liteModeEnabled: false,
-        ),
+      ]),
+      child: GoogleMap(
+        initialCameraPosition:
+            CameraPosition(target: LatLng(lat, lon), zoom: zoom),
+        mapType: MapType.normal,
+        style: _darkStyle,
+        zoomControlsEnabled: false,
+        myLocationButtonEnabled: false,
+        scrollGesturesEnabled: false,   // no panning: that is where a bearing would come from
+        zoomGesturesEnabled: true,
+        rotateGesturesEnabled: false,
+        tiltGesturesEnabled: false,
+        liteModeEnabled: false,
+        onCameraIdle: () {},
+        onCameraMove: (pos) => onZoom?.call(pos.zoom),
       ),
     );
   }

@@ -16,7 +16,17 @@ flutter pub get
 
 # --pwa-strategy=none: the service worker serves a stale bundle for one extra
 # reload after every deploy, which looks exactly like "my fix didn't ship".
-flutter build web --release --pwa-strategy=none
+flutter build web --release --pwa-strategy=none \
+  --dart-define=GOOGLE_MAPS_KEY="${GOOGLE_MAPS_KEY:-}"
+
+# The key goes into the built bundle, never into the repo. Config.hasMaps is
+# what the Dart side checks; this is what the browser needs to load the JS API.
+# With no key set, both stay empty and the app draws its own map.
+if [ -n "${GOOGLE_MAPS_KEY:-}" ]; then
+  bash ./scripts/stamp-maps-key.sh build/web
+else
+  echo "→ no GOOGLE_MAPS_KEY set; shipping the drawn map"
+fi
 
 # The design prototype rides along as a plain file, so there is one link that
 # shows the current thinking without needing the whole app to be finished.

@@ -114,6 +114,11 @@ class SwarmEngine extends ChangeNotifier {
   /// asking the server. Everything else — decay, glow, the hunt, the pop —
   /// is identical, because none of it ever depended on knowing a position.
   SwarmApi? api;
+
+  /// What the ground is currently showing. Set by the screen when the map
+  /// camera moves; drives how far a sweep reaches and how loud a whisper has
+  /// to be to survive that distance.
+  double zoom = 17.4;
   bool get live => api != null;
   String? liveError;
   String hint = 'tap the dark to walk · sim ×10';
@@ -194,7 +199,11 @@ class SwarmEngine extends ChangeNotifier {
   /// direction is not knowable, which is the entire point.
   Future<void> _remoteSweep() async {
     try {
-      final rows = await api!.sweep(radius: 200);
+      // The map's zoom decides what a sweep is even allowed to return. One
+      // curve, in SwarmApi.lens, so the ground and the sonar cannot disagree
+      // about what should be visible at this scale.
+      final l = SwarmApi.lens(zoom);
+      final rows = await api!.sweep(radius: l.radius, minBoosts: l.minBoosts);
       final seen = <String>{};
       for (final r in rows) {
         seen.add(r.id);
