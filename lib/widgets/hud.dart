@@ -14,6 +14,7 @@ class Hud extends StatelessWidget {
     required this.onClass,
     required this.onEmergence,
     required this.onDeep,
+    required this.onRooms,
     required this.onInfo,
     required this.onStreak,
     required this.onPulse,
@@ -27,6 +28,7 @@ class Hud extends StatelessWidget {
   final VoidCallback onClass;
   final VoidCallback onEmergence;
   final VoidCallback onDeep;
+  final VoidCallback onRooms;
   final VoidCallback onInfo;
   final VoidCallback onStreak;
   final VoidCallback onPulse;
@@ -65,6 +67,8 @@ class Hud extends StatelessWidget {
                 ]),
               ),
               const Spacer(),
+              _IconBtn(
+                  icon: Icons.forum_outlined, onTap: onRooms, tip: 'Rooms'),
               _IconBtn(icon: Icons.waves_rounded, onTap: onDeep, tip: 'Deep Ocean'),
               const SizedBox(width: 7),
               _IconBtn(icon: Icons.wb_twilight_rounded, onTap: onDawn, tip: 'End the night'),

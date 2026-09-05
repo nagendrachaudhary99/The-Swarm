@@ -123,7 +123,7 @@ class _RootState extends State<_Root> {
         ),
       );
     }
-    if (SwarmApi.ready && !SwarmApi.instance.signedIn) {
+    if (!Config.demo && SwarmApi.ready && !SwarmApi.instance.signedIn) {
       return GateScreen(onIn: () => setState(() {}));
     }
     return const EmergenceScreen();

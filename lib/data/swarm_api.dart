@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
+import '../models/room.dart';
 
 /// One whisper as the server is willing to describe it: a body and a distance
 /// BAND. No coordinate, no author, no bearing. This class cannot represent a
@@ -254,6 +255,10 @@ class SwarmApi {
         _ => OtpType.magiclink,
       };
 
+  /// Close a realtime channel. A chat sheet that opens and closes twenty
+  /// times a night must not leave twenty sockets behind it.
+  Future<void> drop(RealtimeChannel channel) => _db.removeChannel(channel);
+
   Future<void> signOut() => _db.auth.signOut();
 
   /// Give a session a chance to appear before anyone decides to show the door.
@@ -299,13 +304,111 @@ class SwarmApi {
 
   /// A sonar sweep. Returns bodies and bands for whispers within [radius]
   /// metres, and nothing else.
-  Future<List<RemoteWhisper>> sweep({double radius = 132}) async {
-    final rows = await _db.rpc('sweep', params: {'radius_m': radius}) as List;
+  ///
+  /// [minBoosts] is what zoom means. Pulling back does not mean "send me
+  /// everything further away" — that is how a map becomes soup and a payload
+  /// becomes a leak. It means "only the loud ones", the way a country survives
+  /// zooming out and a single house does not. The floor is applied in
+  /// Postgres, so the quiet whispers are never sent rather than being sent and
+  /// then dropped.
+  Future<List<RemoteWhisper>> sweep({
+    double radius = 132,
+    int minBoosts = 0,
+  }) async {
+    final rows = await _db.rpc('sweep', params: {
+      'radius_m': radius,
+      'min_boosts': minBoosts,
+    }) as List;
     return rows
         .cast<Map<String, dynamic>>()
         .map(RemoteWhisper.fromRow)
         .toList();
   }
+
+  /// The boost floor for a given map zoom, and the radius that goes with it.
+  ///
+  /// One place owns this curve so the map, the sweep and the painter cannot
+  /// disagree about what is supposed to be visible. Zoom 18 is a courtyard;
+  /// zoom 13 is the whole city and only the loudest thing on campus survives
+  /// it.
+  static ({double radius, int minBoosts}) lens(double zoom) {
+    if (zoom >= 18) return (radius: 140, minBoosts: 0);
+    if (zoom >= 16.5) return (radius: 320, minBoosts: 1);
+    if (zoom >= 15) return (radius: 700, minBoosts: 3);
+    if (zoom >= 13.5) return (radius: 1600, minBoosts: 8);
+    return (radius: 4000, minBoosts: 20);
+  }
+
+  // ------------------------------------------------------------- rooms
+  // A whisper is shouted and lost. A room is where two people who found each
+  // other can actually talk — under every rule the whispers live by.
+
+  /// Open a room at your own beacon. The client sends no coordinate; the
+  /// server reads the position you already pushed. One at a time, enforced by
+  /// a trigger rather than by this method.
+  Future<String> openRoom(String title,
+          {int radius = 120, int minutes = 60}) async =>
+      await _db.rpc('room_open', params: {
+        'title_in': title,
+        'radius_in': radius,
+        'minutes_in': minutes,
+      }) as String;
+
+  /// Rooms you can see from where you stand — bands and headcounts only.
+  Future<List<Room>> roomsNear({double within = 300}) async {
+    final rows = await _db.rpc('rooms_near', params: {'within_m': within})
+        as List;
+    return rows.cast<Map<String, dynamic>>().map(Room.fromRow).toList();
+  }
+
+  /// Walk in. Returns the handle you will wear inside — HERON-2 — which is
+  /// yours for the life of the room and means nothing outside it. Throws
+  /// 'out of range' if you are not actually standing near enough; the door is
+  /// physical, and the check is the server's, not the button's.
+  Future<String> joinRoom(String id) async =>
+      await _db.rpc('room_join', params: {'target': id}) as String;
+
+  Future<void> leaveRoom(String id) =>
+      _db.rpc('room_leave', params: {'target': id});
+
+  Future<String> say(String roomId, String body) async =>
+      await _db.rpc('room_say', params: {
+        'target': roomId,
+        'body_in': body,
+      }) as String;
+
+  Future<List<ChatLine>> history(String roomId, {int limit = 60}) async {
+    final rows = await _db.rpc('room_history', params: {
+      'target': roomId,
+      'limit_in': limit,
+    }) as List;
+    final lines =
+        rows.cast<Map<String, dynamic>>().map(ChatLine.fromRow).toList();
+    return lines.reversed.toList(); // newest last, the way a chat reads
+  }
+
+  /// Silence whoever said a line, without ever learning who they are.
+  Future<bool> blockSpeaker(String messageId) async =>
+      await _db.rpc('block_speaker', params: {'target': messageId}) as bool;
+
+  /// Lines arriving in one room, live. RLS on `messages` is what makes this
+  /// safe to subscribe to: a non-member's socket receives nothing, because the
+  /// policy refuses the row rather than the client hiding it.
+  RealtimeChannel liveRoom(String roomId, void Function(ChatLine) onLine) => _db
+      .channel('room:$roomId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'messages',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'room',
+          value: roomId,
+        ),
+        callback: (payload) =>
+            onLine(ChatLine.fromLiveRow(payload.newRecord, user?.id)),
+      )
+      .subscribe();
 
   /// Post at your own beacon. The client never sends a coordinate — the server
   /// reads the one you already pushed.

@@ -9,6 +9,7 @@ import '../painters/sonar_painter.dart';
 import '../theme.dart';
 import '../widgets/dock.dart';
 import '../widgets/hud.dart';
+import '../widgets/rooms.dart';
 import '../widgets/sheets.dart';
 import '../widgets/whisper_bubble.dart';
 
@@ -149,6 +150,7 @@ class _EmergenceScreenState extends State<EmergenceScreen>
                     countdown: _emergenceLeft,
                     onClass: () => showClassSheet(context, _engine),
                     onEmergence: () => showBloomSheet(context, _engine),
+                    onRooms: () => showRoomsSheet(context),
                     onDeep: () => showDeepSheet(context, _engine),
                     onInfo: () => showInfoSheet(context),
                     onStreak: () => showStatSheet(context, _engine, 'streak'),
