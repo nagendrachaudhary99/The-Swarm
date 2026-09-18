@@ -40,6 +40,86 @@ class RemoteWhisper {
   bool get isMirage => band == 'mirage';
 }
 
+/// One tick of a live hunt, as the server is willing to describe it.
+///
+/// Note what is absent, again: no bearing, no coordinate, no id for the person
+/// being chased. [state] is what they are doing, which the hunter is allowed to
+/// know only because they were told they were being hunted before they did it.
+class HuntTick {
+  const HuntTick({
+    required this.band,
+    required this.state,
+    required this.seconds,
+  });
+
+  factory HuntTick.fromRow(Map<String, dynamic> r) => HuntTick(
+        band: (r['band'] ?? 'lost') as String,
+        state: (r['state'] ?? 'none') as String,
+        seconds: (r['seconds'] ?? 0) as int,
+      );
+
+  static const none = HuntTick(band: 'lost', state: 'none', seconds: 0);
+
+  final String band, state;
+
+  /// Seconds left on whatever clock is currently running: the freeze if they
+  /// are standing still, the hunt itself otherwise.
+  final int seconds;
+
+  /// The floor, reached. The server has deleted the hunt and will not answer
+  /// again — there is nothing further to ask it.
+  bool get burst => state == 'burst';
+
+  bool get frozen => state == 'frozen';
+
+  /// Every way a hunt can stop being a hunt.
+  bool get over =>
+      burst ||
+      state == 'none' ||
+      state == 'gone' ||
+      state == 'dissolved';
+}
+
+/// What someone being hunted is allowed to know: that it is happening, how
+/// many, and how close the nearest one is. There is no field here for who,
+/// because there is no column for it in the table this comes from.
+class HuntedState {
+  const HuntedState({
+    required this.hunters,
+    required this.nearest,
+    required this.frozen,
+  });
+
+  factory HuntedState.fromRow(Map<String, dynamic> r) => HuntedState(
+        hunters: (r['hunters'] ?? 0) as int,
+        nearest: (r['nearest'] ?? 'none') as String,
+        frozen: (r['frozen'] ?? false) as bool,
+      );
+
+  static const calm = HuntedState(hunters: 0, nearest: 'none', frozen: false);
+
+  final int hunters;
+  final String nearest;
+  final bool frozen;
+
+  bool get hunted => hunters > 0;
+}
+
+/// A spore someone left behind, once they have walked far enough away from it
+/// that it no longer points at a person.
+class RemoteSpore {
+  const RemoteSpore({required this.id, required this.band, required this.created});
+
+  factory RemoteSpore.fromRow(Map<String, dynamic> r) => RemoteSpore(
+        id: r['id'] as String,
+        band: (r['band'] ?? 'cold') as String,
+        created: DateTime.parse(r['created'] as String),
+      );
+
+  final String id, band;
+  final DateTime created;
+}
+
 class CampusEmailRejected implements Exception {
   const CampusEmailRejected();
   @override
@@ -360,6 +440,67 @@ class SwarmApi {
   /// How far, never where. Returns 'mirage' under ten metres and stops there.
   Future<String> band(String whisperId) async =>
       await _db.rpc('whisper_band', params: {'target': whisperId}) as String;
+
+  // ------------------------------------------------------------- hunts
+  // Until now the hunt was a puppet: the engine rolled a die to decide whether
+  // a target froze or ran. These are the calls that make the other half of it
+  // a person, who is told, and who can refuse.
+
+  /// Begin tracking whoever wrote a whisper. Returns the opening band, or
+  /// 'mirage' if you were already inside the floor — in which case no hunt was
+  /// started and there is nothing to ping.
+  Future<String> huntStart(String whisperId) async =>
+      await _db.rpc('hunt_start', params: {'target': whisperId}) as String;
+
+  /// One tick of the ring. The only call in this class that is expected to be
+  /// made on a timer, because it is the only one whose answer changes when
+  /// nobody has touched the phone.
+  Future<HuntTick> huntPing() async {
+    final rows = await _db.rpc('hunt_ping') as List;
+    if (rows.isEmpty) return HuntTick.none;
+    return HuntTick.fromRow(rows.first as Map<String, dynamic>);
+  }
+
+  Future<void> huntDrop() => _db.rpc('hunt_drop');
+
+  /// The prey half. Safe to call on a timer for the same reason.
+  Future<HuntedState> hunted() async {
+    final rows = await _db.rpc('hunted_state') as List;
+    if (rows.isEmpty) return HuntedState.calm;
+    return HuntedState.fromRow(rows.first as Map<String, dynamic>);
+  }
+
+  /// The freeze right. Standing still dissolves your signal — to everyone, not
+  /// only to whoever is already chasing you. Nothing anywhere counters this.
+  Future<bool> freezeSignal(bool on) async =>
+      await _db.rpc('freeze_signal', params: {'on_in': on}) as bool;
+
+  /// Being told, live. This is the channel that makes rule three true rather
+  /// than merely polled: `hunt_alerts` has no hunter column, which is what
+  /// makes a socket on it safe to open at all.
+  RealtimeChannel liveHunted(void Function(String band) onAlert) => _db
+      .channel('swarm:hunted')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'hunt_alerts',
+        callback: (payload) =>
+            onAlert((payload.newRecord['band'] ?? 'cold') as String),
+      )
+      .subscribe();
+
+  // ------------------------------------------------------------- spores
+  // The one thing in the app that points at a place rather than a person —
+  // which it is only allowed to do because by the time anyone can see it, its
+  // author is somewhere else.
+
+  Future<String> sporeDrop() async => await _db.rpc('spore_drop') as String;
+
+  Future<List<RemoteSpore>> sporesNear({double within = 300}) async {
+    final rows = await _db.rpc('spores_near', params: {'within_m': within})
+        as List;
+    return rows.cast<Map<String, dynamic>>().map(RemoteSpore.fromRow).toList();
+  }
 
   // ------------------------------------------------------------- safety
   // Apple Guideline 1.2 requires a filter, a report path, and blocking for any

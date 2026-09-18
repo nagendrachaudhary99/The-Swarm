@@ -115,6 +115,34 @@ class SwarmEngine extends ChangeNotifier {
   /// is identical, because none of it ever depended on knowing a position.
   SwarmApi? api;
 
+  // --- the hunt, once there is a person on the other end of it ------------
+  // Offline these stay at their defaults and `_huntStep` keeps rolling dice,
+  // which is the right behaviour for one phone. Online the dice are gone: the
+  // band is measured between two real beacons, and whether the target freezes
+  // is a decision somebody made.
+
+  /// The last thing the server said about the ring. Drives the dashed circle
+  /// exactly as the local hunt does — the painter cannot tell the difference,
+  /// because the honest part of a hunt was never the direction.
+  HuntTick hunt = HuntTick.none;
+
+  /// The other half: what is happening to YOU. Rule three is this field being
+  /// non-empty and the HUD saying so.
+  HuntedState prey = HuntedState.calm;
+
+  double _huntClock = 0;
+  double _preyClock = 0;
+
+  /// How long you have been standing still, and what the server currently
+  /// believes about that. The freeze right is not an ability and costs
+  /// nothing: it is what standing still means.
+  double _stillFor = 0;
+  bool _serverFrozen = false;
+
+  /// True once the server has refused to narrow any further. Latched, because
+  /// the whole point of the floor is that asking again does not help.
+  bool mirageLatched = false;
+
   /// What the ground is currently showing. Set by the screen when the map
   /// camera moves; drives how far a sweep reaches and how loud a whisper has
   /// to be to survive that distance.
@@ -257,14 +285,50 @@ class SwarmEngine extends ChangeNotifier {
   void track(Whisper w) {
     if (identical(target, w)) {
       target = null;
+      hunt = HuntTick.none;
+      mirageLatched = false;
+      if (live) unawaited(api!.huntDrop());
       _say('tracking dropped');
     } else {
       target = w;
       w.nextThink = t + 1.2;
+      hunt = HuntTick.none;
+      mirageLatched = false;
+      _huntClock = 0;
       _say('tracking · walk toward the ring');
+      // Offline this toast is a promise the app cannot keep. Online it is
+      // literally true: hunt_start writes the alert row before it returns.
       onToast?.call('◎ ring locked · they have been told');
+      if (live && w.remoteId != null) unawaited(_startRemoteHunt(w));
     }
     notifyListeners();
+  }
+
+  /// Ask the server to open the hunt. It answers with the opening band, or
+  /// with 'mirage' when you were already inside the floor — in which case no
+  /// hunt exists to ping and the ring pops on the spot.
+  Future<void> _startRemoteHunt(Whisper w) async {
+    try {
+      final band = await api!.huntStart(w.remoteId!);
+      if (band == 'mirage') {
+        _burst(w);
+        return;
+      }
+      if (band == 'lost') {
+        if (identical(target, w)) target = null;
+        _say('signal lost · they are already gone');
+        notifyListeners();
+        return;
+      }
+      hunt = HuntTick(band: band, state: 'open', seconds: 0);
+      notifyListeners();
+    } catch (e) {
+      liveError = e.toString();
+      // A refused hunt must not strand the ring on screen pretending to work.
+      if (identical(target, w)) target = null;
+      _say('the hunt would not open · check the connection', alert: true);
+      notifyListeners();
+    }
   }
 
   void postWhisper(String body) {
@@ -286,6 +350,17 @@ class SwarmEngine extends ChangeNotifier {
     energy -= sporeCost;
     spores.add(Spore(you, _rng.nextDouble()));
     _sporeAnchor = you;
+    // The server keeps its own copy at your beacon and will not show it to
+    // anyone until you have walked away from it — same twenty-five metres
+    // `_bloomSpores` uses here, so the two halves agree about what "away" is.
+    if (live) {
+      unawaited(api!.sporeDrop().catchError((e) {
+        // Three at a time is enforced in Postgres, so this is the one refusal
+        // worth repeating out loud.
+        onToast?.call('● you have enough spores out');
+        return '';
+      }));
+    }
     onToast?.call('● spore dropped · walk away to let it bloom');
     notifyListeners();
   }
@@ -394,6 +469,7 @@ class SwarmEngine extends ChangeNotifier {
     _advanceWhispers(dt);
     _topUp(dt);
     _bloomSpores();
+    _liveHunt(dt);
 
     bursts.removeWhere((b) {
       b.t += dt;
@@ -418,6 +494,109 @@ class SwarmEngine extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  // ------------------------------------------------------------- live hunts
+
+  /// The two clocks that only tick when there is a server, plus the one rule
+  /// that costs nothing and cannot be countered.
+  ///
+  /// Both polls are cheap and deliberately slow. A hunt is a walk across a
+  /// campus, not a shooter, and a ring that updates once a second is already
+  /// faster than anyone can move.
+  void _liveHunt(double dt) {
+    if (!live) return;
+
+    _stillness(dt);
+
+    if (target != null && !mirageLatched) {
+      _huntClock += dt;
+      if (_huntClock > 1.1) {
+        _huntClock = 0;
+        unawaited(_tickHunt());
+      }
+    }
+
+    _preyClock += dt;
+    if (_preyClock > 3) {
+      _preyClock = 0;
+      unawaited(_tickPrey());
+    }
+  }
+
+  /// The freeze right. Not an ability, not a purchase, not a class: standing
+  /// still is the whole mechanism, and it is available to everyone who is
+  /// being hunted for as long as they are willing to stop walking.
+  void _stillness(double dt) {
+    if (destination != null) {
+      _stillFor = 0;
+      if (_serverFrozen) {
+        _serverFrozen = false;
+        unawaited(api!.freezeSignal(false).catchError((_) => false));
+      }
+      return;
+    }
+
+    _stillFor += dt;
+    // A second and a half, so that putting the phone down between taps is not
+    // mistaken for a decision.
+    if (_stillFor > 1.5 && !_serverFrozen) {
+      _serverFrozen = true;
+      unawaited(api!.freezeSignal(true).catchError((_) => false));
+      if (prey.hunted) {
+        onToast?.call('❄ holding still · your signal is dissolving');
+      }
+    }
+  }
+
+  Future<void> _tickHunt() async {
+    try {
+      final tick = await api!.huntPing();
+      final was = hunt.state;
+      hunt = tick;
+
+      if (tick.state != was) {
+        switch (tick.state) {
+          case 'frozen':
+            _say('signal dissolving · they have stopped moving');
+          case 'dissolved':
+            target = null;
+            _say('they held still · the signal is gone');
+            onToast?.call('◌ you lost them · that was their right');
+          case 'gone':
+            target = null;
+            _say('signal lost · they left the water');
+          case 'none':
+            target = null;
+          case 'open':
+            if (was == 'frozen') {
+              _say('they are moving again · cut them off', alert: true);
+            }
+        }
+      }
+      liveError = null;
+      notifyListeners();
+    } catch (e) {
+      liveError = e.toString();
+    }
+  }
+
+  Future<void> _tickPrey() async {
+    try {
+      final now = await api!.hunted();
+      final was = prey;
+      prey = now;
+
+      // Told, every time it starts being true. This is rule three and it is
+      // not conditional on anything.
+      if (now.hunted && !was.hunted) {
+        onToast?.call('◎ someone is tracking you · stand still to dissolve');
+        _say('you are being hunted · stop walking to disappear', alert: true);
+      }
+      notifyListeners();
+    } catch (_) {
+      // The prey poll failing must never be louder than the hunt itself.
+    }
   }
 
   void _walk(double dt) {
@@ -489,6 +668,14 @@ class SwarmEngine extends ChangeNotifier {
   /// The prey half of the loop. Being hunted is not passive: you are told, and
   /// standing still dissolves your signal. Being found is always a choice.
   void _huntStep(Whisper w, double dt) {
+    // Online the dice are gone. `_liveHunt` has already asked the server what
+    // the band is and what the other person is doing, and this only has to
+    // draw it.
+    if (live && w.remoteId != null) {
+      _remoteHuntStep(w, dt);
+      return;
+    }
+
     final d = distanceTo(w);
 
     if (t > w.nextThink) {
@@ -519,21 +706,59 @@ class SwarmEngine extends ChangeNotifier {
     }
 
     // The 10 metre floor. The ring bursts and returns nothing, forever.
-    if (d < 10) {
-      bursts.add(Burst(
-        w.pos,
-        List.generate(14, (_) {
-          final a = _rng.nextDouble() * pi * 2;
-          final r = 6 + _rng.nextDouble() * 12;
-          return Offset(cos(a), sin(a)) * r;
-        }),
-      ));
-      target = null;
-      shake = 1;
-      flash = 1;
-      _say('the ring popped · look up');
-      onMirage?.call(w);
-    }
+    if (d < 10) _burst(w);
+  }
+
+  /// Online, the ring is measured instead of invented.
+  ///
+  /// The band is the only truth the server will tell, so the bubble is held at
+  /// that distance and keeps whatever angle it already had. The direction is
+  /// still a lie, exactly as it is after a sweep — there has never been a
+  /// bearing in any payload and this does not add one.
+  void _remoteHuntStep(Whisper w, double dt) {
+    if (mirageLatched) return;
+
+    final delta = w.pos - you;
+    final a = delta.distance < 0.001
+        ? _rng.nextDouble() * pi * 2
+        : atan2(delta.dy, delta.dx);
+    final want = _metresFor(hunt.band);
+
+    // Ease rather than teleport. A band is a step change and a ring that jumps
+    // is a ring nobody walks toward.
+    w.pos = _clampWorld(
+      Offset.lerp(w.pos, you + Offset(cos(a), sin(a)) * want,
+              min(1, dt * 2.2)) ??
+          w.pos,
+    );
+
+    // The server knows whether they are standing still. It does not know, and
+    // must not guess, whether moving means running away.
+    w.state =
+        hunt.frozen ? TargetState.frozen : TargetState.drift;
+
+    if (hunt.burst) _burst(w);
+  }
+
+  /// The floor, reached. Everything here is a refusal dressed as an effect:
+  /// the ring is deleted, nothing replaces it, and the app has no further
+  /// answer about who that was.
+  void _burst(Whisper w) {
+    mirageLatched = true;
+    bursts.add(Burst(
+      w.pos,
+      List.generate(14, (_) {
+        final a = _rng.nextDouble() * pi * 2;
+        final r = 6 + _rng.nextDouble() * 12;
+        return Offset(cos(a), sin(a)) * r;
+      }),
+    ));
+    target = null;
+    hunt = HuntTick.none;
+    shake = 1;
+    flash = 1;
+    _say('the ring popped · look up');
+    onMirage?.call(w);
   }
 
   Offset _clampWorld(Offset p) => Offset(

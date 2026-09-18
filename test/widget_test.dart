@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:swarm/data/swarm_api.dart';
 import 'package:swarm/engine/swarm_engine.dart';
 import 'package:swarm/models/swarm_class.dart';
 import 'package:swarm/models/whisper.dart';
@@ -85,6 +86,93 @@ void main() {
       e.useAbility();
       expect(e.energy, before, reason: 'a no-op ability must not charge');
       expect(e.wedgeOn, isFalse);
+    });
+  });
+
+  // The hunt is the one loop with a second person in it, so these are tests of
+  // the promises made to that person rather than of the mechanics.
+  group('the hunt', () {
+    test('a burst latches, so asking again never narrows further', () {
+      final e = SwarmEngine();
+      final w = e.whispers.first
+        ..revealed = true
+        ..pos = e.you + const Offset(12, 0)
+        ..state = TargetState.frozen;
+
+      e.track(w);
+      expect(e.mirageLatched, isFalse);
+
+      // walk the last two metres
+      w.pos = e.you + const Offset(8, 0);
+      e.update(1 / 60);
+
+      expect(e.mirageLatched, isTrue);
+      expect(e.target, isNull);
+      expect(e.hunt.band, 'lost', reason: 'the floor returns nothing at all');
+    });
+
+    test('dropping a hunt clears the latch so a new one can start', () {
+      final e = SwarmEngine();
+      final a = e.whispers.first..revealed = true;
+      e.track(a);
+      e.track(a); // tracking the same one again drops it
+      expect(e.target, isNull);
+      expect(e.mirageLatched, isFalse);
+    });
+
+    test('standing still costs nothing — the freeze right is never priced', () {
+      final e = SwarmEngine();
+      final before = e.energy;
+      e.destination = null;
+      for (var i = 0; i < 60 * 5; i++) {
+        e.update(1 / 60);
+      }
+      expect(e.energy, greaterThanOrEqualTo(before),
+          reason: 'energy regenerates while still; it must never be spent');
+      expect(e.prey.frozen, isFalse, reason: 'offline there is nobody to tell');
+    });
+
+    test('a tick the server never answered is not a hunt', () {
+      expect(HuntTick.none.over, isTrue);
+      expect(HuntTick.none.burst, isFalse);
+      expect(HuntedState.calm.hunted, isFalse);
+    });
+
+    test('every way a hunt ends reads as over, and only one as a burst', () {
+      HuntTick t(String s) => HuntTick(band: 'hot', state: s, seconds: 0);
+      expect(t('burst').over, isTrue);
+      expect(t('burst').burst, isTrue);
+      expect(t('dissolved').over, isTrue);
+      expect(t('gone').over, isTrue);
+      expect(t('none').over, isTrue);
+
+      expect(t('open').over, isFalse);
+      // A frozen hunt is still running: they can start moving again.
+      expect(t('frozen').over, isFalse);
+      expect(t('frozen').frozen, isTrue);
+    });
+
+    test('the wire format carries a band and never a position', () {
+      final tick = HuntTick.fromRow(
+          {'band': 'critical', 'state': 'open', 'seconds': 42});
+      expect(tick.band, 'critical');
+      expect(tick.seconds, 42);
+
+      final hunted = HuntedState.fromRow(
+          {'hunters': 2, 'nearest': 'hot', 'frozen': true});
+      expect(hunted.hunted, isTrue);
+      expect(hunted.hunters, 2);
+      expect(hunted.nearest, 'hot');
+
+      // There is no field for who, in either direction, because there is no
+      // column for it in the tables these come from.
+      expect(tick.toString(), isNot(contains('user')));
+    });
+
+    test('a missing row degrades to calm rather than to an exception', () {
+      expect(HuntTick.fromRow(const {}).state, 'none');
+      expect(HuntTick.fromRow(const {}).band, 'lost');
+      expect(HuntedState.fromRow(const {}).hunted, isFalse);
     });
   });
 

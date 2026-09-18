@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../data/swarm_api.dart';
 import '../engine/swarm_engine.dart';
 import '../models/swarm_class.dart';
 import '../theme.dart';
@@ -118,6 +119,79 @@ class Hud extends StatelessWidget {
               ),
             ),
           ]),
+          // Rule three, on screen rather than in a toast that fades. Someone
+          // being hunted is entitled to know it for as long as it is true, and
+          // to be told the one thing that ends it.
+          if (engine.prey.hunted) ...[
+            const SizedBox(height: 8),
+            _Hunted(prey: engine.prey),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// What the hunted person is shown. Deliberately the same five band words a
+/// hunter sees, so neither side has better information than the other — and
+/// never a direction, because there is no direction to give.
+class _Hunted extends StatelessWidget {
+  const _Hunted({required this.prey});
+
+  final HuntedState prey;
+
+  Color get _tint => switch (prey.nearest) {
+        'mirage' || 'critical' => Swarm.critical,
+        'hot' => Swarm.hot,
+        'warm' => Swarm.warm,
+        _ => Swarm.cold,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final dissolving = prey.frozen;
+    final tint = dissolving ? Swarm.mage : _tint;
+
+    return _Glass(
+      radius: 10,
+      border: tint.withValues(alpha: .5),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            dissolving ? Icons.ac_unit_rounded : Icons.my_location_rounded,
+            size: 14,
+            color: tint,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dissolving
+                      ? 'YOUR SIGNAL IS DISSOLVING'
+                      : prey.hunters == 1
+                          ? 'SOMEONE IS TRACKING YOU'
+                          : '${prey.hunters} ARE TRACKING YOU',
+                  style: Swarm.data(
+                      size: 9.5, color: tint, tracking: 1.8,
+                      weight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  dissolving
+                      ? 'keep still and they lose you'
+                      : 'stand still to disappear',
+                  style: Swarm.voice(size: 12, color: Swarm.fog),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            prey.nearest.toUpperCase(),
+            style: Swarm.data(size: 9.5, color: tint, tracking: 1.4),
+          ),
         ],
       ),
     );
