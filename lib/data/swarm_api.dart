@@ -46,14 +46,6 @@ class CampusEmailRejected implements Exception {
   String toString() => 'That address is not a campus one.';
 }
 
-/// A token pulled out of a pasted magic link, with the kind Supabase stamped
-/// on it. The kind matters: verifying a `signup` hash as a `magiclink` is
-/// rejected exactly the way a wrong code is.
-class _LinkToken {
-  const _LinkToken(this.hash, this.type);
-  final String hash;
-  final OtpType type;
-}
 
 /// Everything the app is allowed to ask the database.
 ///
@@ -72,21 +64,12 @@ class SwarmApi {
     await Supabase.initialize(
       url: Config.url,
       publishableKey: Config.key,
-      // A clicked link comes back with the session in the URL. Let the SDK
-      // pick it up and clean the address bar, so arriving from an email lands
-      // in exactly the same state as typing a code.
-      //
-      // Implicit, not the PKCE default, and this is the whole reason a clicked
-      // link used to loop back to the gate. PKCE keeps a code verifier in the
-      // storage of the browser that ASKED for the link, and the mailed link is
-      // then worth nothing anywhere else — but a mail app opens links in its
-      // own in-app browser, so "anywhere else" is the normal case, not the
-      // edge one. The exchange failed with no session, the root rebuilt, and
-      // the door reappeared. Implicit puts the tokens in the URL itself, so
-      // whichever browser opens the link is the one that gets signed in.
+      // OAuth 2.0 uses PKCE. The SDK detects the callback URL,
+      // exchanges the authorization code, persists the session, and cleans
+      // the browser URL on web.
       authOptions: const FlutterAuthClientOptions(
         detectSessionInUri: true,
-        authFlowType: AuthFlowType.implicit,
+        authFlowType: AuthFlowType.pkce,
       ),
     );
     final api = SwarmApi._(Supabase.instance.client);
@@ -95,13 +78,11 @@ class SwarmApi {
     return api;
   }
 
-  /// One place where "you are in" becomes true, whichever door was used.
+  /// One place where "you are in" becomes true, whichever auth method was used.
   ///
-  /// A social login never passes through [sendCode], so the domain check would
-  /// simply not happen — Google will happily vouch for any address alive. We
-  /// therefore re-apply the same rule to the session itself: if the address is
-  /// not a campus one the session is thrown away immediately, before any
-  /// screen behind the gate is built.
+  /// OAuth can authenticate any valid mailbox, so the domain check is applied
+  /// again to the resulting session. If the address is not a campus one, the
+  /// session is thrown away before any screen behind the gate is built.
   void _guardTheDoor() {
     _db.auth.onAuthStateChange.listen((state) async {
       if (state.event != AuthChangeEvent.signedIn) return;
@@ -130,9 +111,6 @@ class SwarmApi {
   User? get user => _db.auth.currentUser;
   bool get signedIn => user != null;
 
-  /// A pilot cohort signs in anonymously so two phones can be tested in a
-  /// corridor. Real launch swaps this for an `.edu` magic link — same session,
-  /// same RLS, one line different.
   /// Campus domains that count. The gate is the domain, not a document
   /// upload or a student-ID photo — nobody has to hand us anything sensitive
   /// to prove they belong here.
@@ -147,113 +125,73 @@ class SwarmApi {
     return campusDomains.any(e.endsWith);
   }
 
-  /// Where Supabase should send someone after it verifies a link.
+  /// Where OAuth and password-recovery callbacks should return.
   ///
-  /// Without this it uses the project's Site URL, which ships as
-  /// `http://localhost:3000` and is almost never where the app is actually
-  /// running — you click the link, get signed in, and land on a dead port with
-  /// the token already spent. Supabase always permits `localhost`, so on web we
-  /// simply name the origin we are being served from and the problem is gone.
-  ///
-  /// A deployed origin is NOT permitted by default: it has to be added under
-  /// Authentication → URL Configuration → Redirect URLs, or Supabase silently
-  /// falls back to the Site URL again.
+  /// Add the deployed web origin and `closer://auth-callback` under:
+  /// Authentication -> URL Configuration -> Redirect URLs.
   static String? get _redirectTo {
     if (kIsWeb) return Uri.base.origin;
     return 'closer://auth-callback';
   }
 
-  /// Send a one-time code. Deliberately not a clickable link: deep-linking a
-  /// magic link into iOS, Android and web all at once is three separate
-  /// configuration problems, and a typed code is none of them. The length is
-  /// the project's `mailer_otp_length` (8 today), so nothing here counts
-  /// digits — `verifyCode` strips everything that is not one and sends the
-  /// rest.
-  Future<void> sendCode(String email) async {
+  /// Sign in with any OAuth 2.0 provider enabled in Supabase.
+  Future<void> signInWith(OAuthProvider provider) =>
+      _db.auth.signInWithOAuth(provider, redirectTo: _redirectTo);
+
+  /// Create an account with email and password.
+  Future<AuthResponse> signUpWithPassword({
+    required String email,
+    required String password,
+  }) async {
     final e = email.trim().toLowerCase();
     if (!isCampusEmail(e)) {
       throw const CampusEmailRejected();
     }
-    await _db.auth.signInWithOtp(
+
+    return _db.auth.signUp(
       email: e,
-      shouldCreateUser: true,
+      password: password,
       emailRedirectTo: _redirectTo,
     );
   }
 
-  /// The door that needs no mail at all.
-  ///
-  /// Nothing is sent, nothing is typed, and none of it touches the project's
-  /// mail settings — which is the entire point: a free project cannot put a
-  /// code in an email, so the sturdiest login here is the one that never asks
-  /// for one. On web this leaves the page and comes back with the session in
-  /// the URL, where `detectSessionInUri` picks it up and the root rebuilds
-  /// itself signed in.
-  Future<void> signInWith(OAuthProvider provider) =>
-      _db.auth.signInWithOAuth(provider, redirectTo: _redirectTo);
-
-  /// Accepts whichever thing the email actually contained.
-  ///
-  /// If the templates carry `{{ .Token }}` this is a six-digit code and the
-  /// second branch runs. If they were left as Supabase ships them it is a
-  /// *link*, so we pull the token hash out of it — along with its `type`,
-  /// which is `signup` on a first login and `magiclink` afterwards. Assuming
-  /// one of those is why a brand-new address used to be refused.
-  Future<void> verifyCode(String email, String input) async {
-    final raw = input.trim();
+  /// Sign in to an existing account with email and password.
+  Future<AuthResponse> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
     final e = email.trim().toLowerCase();
-    final link = _tokenIn(raw);
+    if (!isCampusEmail(e)) {
+      throw const CampusEmailRejected();
+    }
 
-    if (link != null) {
-      try {
-        await _db.auth.verifyOTP(tokenHash: link.hash, type: link.type);
-      } on AuthException {
-        // The link said one thing and the server meant the other — which
-        // happens when a template was hand-edited. One retry, then it really
-        // is a bad token.
-        final other =
-            link.type == OtpType.signup ? OtpType.magiclink : OtpType.signup;
-        await _db.auth.verifyOTP(tokenHash: link.hash, type: other);
-      }
-    } else {
-      await _db.auth.verifyOTP(
-        email: e,
-        token: raw.replaceAll(RegExp(r'[^0-9]'), ''),
-        type: OtpType.email,
+    return _db.auth.signInWithPassword(
+      email: e,
+      password: password,
+    );
+  }
+
+  /// Send the password-recovery email for an existing account.
+  ///
+  /// This is only for password recovery. Passwordless/magic-link login is not
+  /// exposed by this API anymore.
+  Future<void> sendPasswordReset(String email) async {
+    final e = email.trim().toLowerCase();
+    if (!isCampusEmail(e)) {
+      throw const CampusEmailRejected();
+    }
+
+    await _db.auth.resetPasswordForEmail(
+      e,
+      redirectTo: _redirectTo,
+    );
+  }
+
+  /// Set a new password after the recovery callback has created a session.
+  Future<UserResponse> updatePassword(String newPassword) =>
+      _db.auth.updateUser(
+        UserAttributes(password: newPassword),
       );
-    }
-
-    // The profile row is not written here. `_guardTheDoor` does it for every
-    // door at once, so a code and a social login cannot drift apart.
-  }
-
-  /// Magic links carry `?token=<hash>&type=<kind>`. Some clients rewrite them
-  /// through a tracker, so we look for the parameters rather than trusting the
-  /// host. A bare hash pasted on its own counts too: nothing else that long is
-  /// free of digits.
-  static _LinkToken? _tokenIn(String s) {
-    final m = RegExp(r'[?&](?:token_hash|token)=([A-Za-z0-9_-]+)').firstMatch(s);
-    if (m != null) {
-      final kind = RegExp(r'[?&]type=([a-z_]+)').firstMatch(s)?.group(1);
-      return _LinkToken(m.group(1)!, _otpType(kind));
-    }
-    if (RegExp(r'^[A-Za-z0-9_-]{20,}$').hasMatch(s) &&
-        !RegExp(r'^[0-9]+$').hasMatch(s)) {
-      // A hash with no URL around it. We cannot know the kind, and signup is
-      // the one that bites first-time users, so start there.
-      return _LinkToken(s, OtpType.signup);
-    }
-    return null;
-  }
-
-  static OtpType _otpType(String? kind) => switch (kind) {
-        'signup' => OtpType.signup,
-        'recovery' => OtpType.recovery,
-        'invite' => OtpType.invite,
-        'email_change' => OtpType.emailChange,
-        'email' => OtpType.email,
-        _ => OtpType.magiclink,
-      };
 
   /// Close a realtime channel. A chat sheet that opens and closes twenty
   /// times a night must not leave twenty sockets behind it.
@@ -261,14 +199,8 @@ class SwarmApi {
 
   Future<void> signOut() => _db.auth.signOut();
 
-  /// Give a session a chance to appear before anyone decides to show the door.
-  ///
-  /// Two different waits hide in here. A session stored on disk comes back in
-  /// a few frames. A session arriving *in the URL* costs a network round trip
-  /// to Supabase — and 350ms of guessing is how a perfectly good link ends up
-  /// showing the sign-in screen anyway. So when the address bar is carrying
-  /// auth parameters we wait for the sign-in itself, and only give up after
-  /// long enough that giving up means it really failed.
+  /// Give a persisted or redirected OAuth session a chance to appear before
+  /// anyone decides to show the sign-in screen.
   Future<void> restoreSession() async {
     if (signedIn) return;
     if (_urlCarriesAuth) {
@@ -278,21 +210,22 @@ class SwarmApi {
             .timeout(const Duration(seconds: 10));
         return;
       } catch (_) {
-        // Expired, already spent, or refused. The door is the honest answer.
+        // Invalid or expired OAuth/recovery callback. Show the sign-in screen.
       }
     }
     await Future<void>.delayed(const Duration(milliseconds: 350));
   }
 
-  /// Is this page load the tail end of a clicked link? Implicit flow returns
-  /// the tokens in the fragment; an error comes back the same way.
+  /// OAuth PKCE returns `?code=...`; recovery callbacks can also carry auth
+  /// parameters. Let Supabase consume them before rebuilding the auth gate.
   static bool get _urlCarriesAuth {
     if (!kIsWeb) return false;
     final u = Uri.base;
     final both = '${u.fragment}&${u.query}';
-    return both.contains('access_token=') ||
-        both.contains('error=') ||
-        both.contains('code=');
+    return both.contains('code=') ||
+        both.contains('access_token=') ||
+        both.contains('refresh_token=') ||
+        both.contains('error=');
   }
 
   Stream<AuthState> get authChanges => _db.auth.onAuthStateChange;
