@@ -69,6 +69,11 @@ class SwarmEngine extends ChangeNotifier {
   final List<Whisper> whispers = [];
   final List<Sweep> sweeps = [];
   final List<Spore> spores = [];
+
+  /// Everyone else within earshot, as bands. Refreshed on a slow clock — this
+  /// is the answer to "am I alone", and an empty screen answers that wrongly.
+  final List<Soul> souls = [];
+  double _soulClock = 0;
   final List<Burst> bursts = [];
 
   Whisper? target;
@@ -804,6 +809,54 @@ class SwarmEngine extends ChangeNotifier {
       _preyClock = 0;
       unawaited(_tickPrey());
     }
+
+    // Presence changes on the timescale of people walking, not of frames.
+    _soulClock += dt;
+    if (_soulClock > 6) {
+      _soulClock = 0;
+      unawaited(_tickSouls());
+    }
+  }
+
+  /// Refresh who is nearby.
+  ///
+  /// Existing dots keep their invented angle so a crowd does not teleport
+  /// every six seconds; only the count and the distances change. The angle was
+  /// never information, but a stable lie reads as people standing still and a
+  /// fresh one reads as static.
+  Future<void> _tickSouls() async {
+    try {
+      final bands = await api!.soulsNear(within: SwarmApi.lens(zoom).radius);
+
+      for (var i = 0; i < bands.length; i++) {
+        final want = _metresFor(bands[i]);
+        if (i < souls.length) {
+          final a = atan2(souls[i].pos.dy - you.dy, souls[i].pos.dx - you.dx);
+          souls[i] = Soul(
+            _placeKeepingAngle(a, want),
+            bands[i],
+            souls[i].phase,
+          );
+        } else {
+          souls.add(Soul(_placeAt(want), bands[i], _rng.nextDouble()));
+        }
+      }
+      if (souls.length > bands.length) {
+        souls.removeRange(bands.length, souls.length);
+      }
+
+      liveError = null;
+      notifyListeners();
+    } catch (_) {
+      // Presence is the least important thing on screen; it fails quietly.
+    }
+  }
+
+  Offset _placeKeepingAngle(double angle, double metres) {
+    final p = you + Offset(cos(angle), sin(angle)) * metres;
+    final v = viewport;
+    if (v == null || v.contains(p)) return _clampWorld(p);
+    return _placeAt(metres);
   }
 
   /// The freeze right. Not an ability, not a purchase, not a class: standing

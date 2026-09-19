@@ -267,6 +267,25 @@ void main() {
       }
     });
 
+    test('a soul cannot represent a person, only a distance', () {
+      // The wire format has no id column, so the class has no field for one.
+      // Two readings a minute apart cannot be correlated, which is the whole
+      // reason presence is safe to show at all.
+      final s = Soul(const Offset(10, 10), 'hot', .5);
+      expect(s.band, 'hot');
+      expect(s.toString(), isNot(contains('id')));
+      expect(s.toString(), isNot(contains('user')));
+    });
+
+    test('presence starts empty and is never invented', () {
+      // `pulse` is a made-up crowd that drifts between 330 and 486. It must
+      // never stand in for the real count, because that is the number someone
+      // checks to decide whether the app is worth opening.
+      final e = SwarmEngine();
+      expect(e.souls, isEmpty);
+      expect(e.live, isFalse, reason: 'offline there is nobody to count');
+    });
+
     test('the screen can tell the engine what is actually visible', () {
       // A desktop window shows a slice about 137 m tall while a sweep reaches
       // 140, so the engine has to know the slice to pick a visible angle. The

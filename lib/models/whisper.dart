@@ -62,6 +62,23 @@ class Whisper {
   double get opacity => remaining < 4 ? (remaining / 4).clamp(0.0, 1.0) : 1.0;
 }
 
+/// Somebody else, out there, at a distance the server was willing to name.
+///
+/// Carries no id because the wire format has none — this class *cannot*
+/// represent a person, only the fact that one is within earshot. [pos] is
+/// drawn at the true band distance and an invented angle, exactly as a whisper
+/// is, because there has never been a bearing in any payload.
+class Soul {
+  Soul(this.pos, this.band, this.phase);
+
+  Offset pos;
+  final String band;
+
+  /// Keeps a crowd from pulsing in lockstep, which reads as a machine rather
+  /// than as people.
+  final double phase;
+}
+
 class Sweep {
   Sweep(this.origin, {this.t = 0, this.duration = 2.4, this.maxRadius = 132});
   final Offset origin;

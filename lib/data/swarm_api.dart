@@ -445,6 +445,21 @@ class SwarmApi {
   Future<String> band(String whisperId) async =>
       await _db.rpc('whisper_band', params: {'target': whisperId}) as String;
 
+  /// Who else is out there, as bands and nothing else.
+  ///
+  /// The rows carry no id, so two calls a minute apart cannot tell you whether
+  /// the person at HOT is the same person as before. That is the whole design:
+  /// it answers "am I alone", which is the question an empty screen answers
+  /// wrongly, and refuses every question after it.
+  Future<List<String>> soulsNear({double within = 300}) async {
+    final rows = await _db.rpc('souls_near', params: {'within_m': within})
+        as List;
+    return rows
+        .cast<Map<String, dynamic>>()
+        .map((r) => (r['band'] ?? 'cold') as String)
+        .toList();
+  }
+
   // ------------------------------------------------------------- hunts
   // Until now the hunt was a puppet: the engine rolled a die to decide whether
   // a target froze or ran. These are the calls that make the other half of it

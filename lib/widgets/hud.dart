@@ -88,7 +88,19 @@ class Hud extends StatelessWidget {
               onTap: onStreak,
             ),
             const SizedBox(width: 6),
-            _Stat(value: '${engine.pulse}', label: 'AWAKE', live: true, onTap: onPulse),
+            // The real number when there is one. `pulse` is invented — it
+            // drifts between 330 and 486 whatever the campus is doing — and an
+            // invented crowd is worse than an honest empty room, because it is
+            // the number a person checks to decide whether to bother.
+            _Stat(
+              value: engine.live ? '${engine.souls.length}' : '${engine.pulse}',
+              label: engine.live ? 'NEARBY' : 'AWAKE',
+              live: true,
+              tint: engine.live && engine.souls.isNotEmpty
+                  ? Swarm.plankton
+                  : null,
+              onTap: onPulse,
+            ),
             const SizedBox(width: 6),
             _Stat(value: '${engine.missed}', label: 'MISSED', onTap: onMissed),
             const SizedBox(width: 6),

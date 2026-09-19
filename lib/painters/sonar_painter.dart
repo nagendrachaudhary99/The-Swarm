@@ -109,6 +109,7 @@ class SonarPainter extends CustomPainter {
       _buildings(canvas);
     }
     _motesLayer(canvas, front: false);
+    _souls(canvas);
     _spores(canvas);
     _unrevealed(canvas);
     _radarArm(canvas, size);
@@ -567,6 +568,41 @@ class SonarPainter extends CustomPainter {
             Swarm.rogue.withValues(alpha: 0),
           ]),
       );
+    }
+  }
+
+  /// Other people, drawn as the little they are allowed to be.
+  ///
+  /// A soft pulse at a true band distance and an invented angle. Deliberately
+  /// not a marker, a pin, or anything with an edge you could aim at: this says
+  /// "somebody is about this far away" and must not read as "somebody is
+  /// THERE". The whole point is to answer 'am I alone' on a quiet night, which
+  /// an empty screen answers wrongly.
+  void _souls(Canvas canvas) {
+    for (final s in engine.souls) {
+      final p = tf.toScreen(s.pos);
+      final beat = reduceMotion
+          ? .55
+          : .42 + .28 * (sin(engine.t * 1.5 + s.phase * pi * 2) * .5 + .5);
+
+      final tint = switch (s.band) {
+        'mirage' || 'critical' => Swarm.critical,
+        'hot' => Swarm.hot,
+        'warm' => Swarm.warm,
+        _ => Swarm.cold,
+      };
+
+      // A haze rather than a point — an edge is something you can aim at.
+      canvas.drawCircle(
+        p,
+        13,
+        Paint()
+          ..shader = ui.Gradient.radial(p, 13, [
+            tint.withValues(alpha: .20 * beat),
+            tint.withValues(alpha: 0),
+          ]),
+      );
+      canvas.drawCircle(p, 2.1, Paint()..color = tint.withValues(alpha: .62 * beat));
     }
   }
 
