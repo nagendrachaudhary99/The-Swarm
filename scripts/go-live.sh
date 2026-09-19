@@ -19,11 +19,43 @@
 
 set -euo pipefail
 
-REF="${SUPABASE_PROJECT_REF:-bocxxdktggogogsrhhss}"
-APP="${APP_ORIGIN:-https://the-swarm-chi.vercel.app}"
-: "${SUPABASE_ACCESS_TOKEN:?set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens)}"
+# Never trace: every credential this script touches would land in the log.
+set +x
 
 cd "$(dirname "$0")/.."
+
+# Prefer a secret that is already on disk over one typed at a prompt.
+#
+# A token pasted into a chat, a terminal, or a command line is a token that
+# now lives in a scrollback buffer, a shell history file, and whatever else
+# was reading either. `.env.local` is gitignored, is already where every other
+# credential for this project lives, and nothing below ever prints what it
+# read out of it.
+if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -f .env.local ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env.local
+  set +a
+fi
+
+REF="${SUPABASE_PROJECT_REF:-bocxxdktggogogsrhhss}"
+APP="${APP_ORIGIN:-https://the-swarm-chi.vercel.app}"
+
+if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+  cat >&2 <<'HOWTO'
+No SUPABASE_ACCESS_TOKEN found.
+
+Get one at https://supabase.com/dashboard/account/tokens, then add a line to
+.env.local (which is gitignored, and is where the rest of this project's
+credentials already live):
+
+    SUPABASE_ACCESS_TOKEN=sbp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Then run this script again with no arguments. The value is read from the file
+and is never printed, never passed on a command line, and never committed.
+HOWTO
+  exit 1
+fi
 
 api() {
   curl -sS -X "$1" "https://api.supabase.com/v1/projects/$REF$2" \

@@ -12,6 +12,13 @@
 
 set -euo pipefail
 
+umask 077
+TMP="$(mktemp "${TMPDIR:-/tmp}/swarm-urls.XXXXXXXX")"
+trap 'rm -f "$TMP"' EXIT INT TERM
+
+# shellcheck source=scripts/_env.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_env.sh"
+
 REF="${SUPABASE_PROJECT_REF:-bocxxdktggogogsrhhss}"
 APP="${APP_ORIGIN:-https://the-swarm-chi.vercel.app}"
 : "${SUPABASE_ACCESS_TOKEN:?set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens)}"
@@ -28,13 +35,13 @@ print(json.dumps({
     "http://localhost:*/**",
     "closer://auth-callback",
   ]),
-}))' "$APP" > /tmp/swarm-auth-urls.json
+}))' "$APP" > "$TMP"
 
 echo "→ pointing $REF at $APP"
 curl -sS -X PATCH "https://api.supabase.com/v1/projects/$REF/config/auth" \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @/tmp/swarm-auth-urls.json \
+  -d @"$TMP" \
   | python3 -c 'import json,sys
 d = json.load(sys.stdin)
 if "message" in d: sys.exit("✗ " + str(d["message"]))

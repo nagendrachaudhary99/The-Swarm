@@ -39,6 +39,9 @@
 
 set -euo pipefail
 
+# shellcheck source=scripts/_env.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_env.sh"
+
 REF="${SUPABASE_PROJECT_REF:-bocxxdktggogogsrhhss}"
 : "${SUPABASE_ACCESS_TOKEN:?set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens)}"
 

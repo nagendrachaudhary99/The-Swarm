@@ -41,6 +41,9 @@
 
 set -euo pipefail
 
+# shellcheck source=scripts/_env.sh
+. "$(dirname "${BASH_SOURCE[0]}")/_env.sh"
+
 REF="${SUPABASE_PROJECT_REF:-bocxxdktggogogsrhhss}"
 : "${SUPABASE_ACCESS_TOKEN:?set SUPABASE_ACCESS_TOKEN (https://supabase.com/dashboard/account/tokens)}"
 
@@ -86,13 +89,20 @@ if d["skipped"]:
     print("   skipped (no credentials, left untouched): " + ", ".join(d["skipped"]))
 ' "$BODY"
 
+# A predictable path in a shared /tmp is a file anyone on the box can read,
+# and this one holds OAuth client secrets. mktemp + umask 077 makes it
+# unguessable and unreadable; the trap means it goes even on a failed curl.
+umask 077
+TMP="$(mktemp "${TMPDIR:-/tmp}/swarm-oauth.XXXXXXXX")"
+trap 'rm -f "$TMP"' EXIT INT TERM
+
 python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1])["body"]))' \
-  "$BODY" > /tmp/swarm-oauth.json
+  "$BODY" > "$TMP"
 
 curl -sS -X PATCH "https://api.supabase.com/v1/projects/$REF/config/auth" \
   -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d @/tmp/swarm-oauth.json \
+  -d @"$TMP" \
   | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
@@ -104,4 +114,3 @@ for p in ("google", "github", "discord", "apple"):
         print("   ✓ %-8s on   %s" % (p, cid[:30] + ("..." if len(cid) > 30 else "")))
 '
 
-rm -f /tmp/swarm-oauth.json
