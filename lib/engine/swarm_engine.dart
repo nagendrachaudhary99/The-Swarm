@@ -177,6 +177,23 @@ class SwarmEngine extends ChangeNotifier {
   /// a lens the sweep is not actually using.
   ({double radius, int minBoosts}) get lensNow => SwarmApi.lens(zoom);
 
+  /// The rungs of the ladder, as zoom levels.
+  static const lensRungs = [18.0, 16.5, 15.0, 13.5, 12.0];
+
+  /// Step the lens by hand.
+  ///
+  /// On a build with a Maps key the camera is pinched and this is never used.
+  /// Without one, `Ground` draws nothing at all — so there is no camera, no
+  /// `onCameraMove`, and `zoom` is frozen at its opening value forever. The
+  /// entire zoom ladder is unreachable on exactly the builds most people run:
+  /// local development, and any deploy where the key was not set.
+  void stepLens() {
+    var i = lensRungs.indexOf(zoom);
+    if (i < 0) i = 0;
+    zoom = lensRungs[(i + 1) % lensRungs.length];
+    notifyListeners();
+  }
+
   double distanceTo(Whisper w) => (w.pos - you).distance;
   Band bandTo(Whisper w) => BandX.of(distanceTo(w));
 

@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../data/swarm_api.dart';
 import '../engine/swarm_engine.dart';
 import '../models/swarm_class.dart';
@@ -149,7 +150,12 @@ class _Lens extends StatelessWidget {
     final wide = l.minBoosts > 0;
     final tint = wide ? Swarm.bard : Swarm.plankton;
 
-    return _Glass(
+    // With a real map underneath, the camera is the control and this is a
+    // readout. With no key there is no camera to pinch, so the readout has to
+    // BE the control or the ladder is unreachable.
+    final tappable = !Config.hasMaps;
+
+    final body = _Glass(
       radius: 9,
       border: tint.withValues(alpha: .28),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -181,9 +187,16 @@ class _Lens extends StatelessWidget {
             '${l.radius.round()}m',
             style: Swarm.data(size: 9.5, color: tint, tracking: 1.2),
           ),
+          if (tappable) ...[
+            const SizedBox(width: 7),
+            const Icon(Icons.unfold_more_rounded, size: 12, color: Swarm.murk),
+          ],
         ],
       ),
     );
+
+    if (!tappable) return body;
+    return GestureDetector(onTap: engine.stepLens, child: body);
   }
 }
 

@@ -227,6 +227,29 @@ void main() {
       expect(e.lensNow, SwarmApi.lens(19));
     });
 
+    test('the ladder is reachable with no Maps key', () {
+      // Without a key `Ground` renders nothing, so there is no camera and no
+      // onCameraMove — zoom would otherwise be frozen at its opening value
+      // forever, which is every local build and any deploy missing the key.
+      final e = SwarmEngine();
+      final rungs = <double>{e.zoom};
+      for (var i = 0; i < SwarmEngine.lensRungs.length; i++) {
+        e.stepLens();
+        rungs.add(e.zoom);
+      }
+      expect(rungs.length, SwarmEngine.lensRungs.length,
+          reason: 'every rung must be reachable by tapping');
+      expect(e.zoom, SwarmEngine().zoom, reason: 'and it must cycle home');
+    });
+
+    test('every rung the tap can reach is a real tier', () {
+      // A rung that lands mid-tier would show a lens the ladder never meant.
+      for (final z in SwarmEngine.lensRungs) {
+        expect(SwarmApi.lens(z), SwarmApi.lens(z + 0.001),
+            reason: 'zoom $z must sit exactly on a tier boundary');
+      }
+    });
+
     test('a boost is felt immediately, not a round trip later', () {
       final e = SwarmEngine();
       final w = e.whispers.first..revealed = true;
