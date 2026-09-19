@@ -121,6 +121,22 @@ void main() {
       expect(e.mirageLatched, isFalse);
     });
 
+    test('nobody hunting you means nothing to hide from', () {
+      // The regression this exists to prevent: freezing on stillness alone.
+      // sweep() drops whispers whose author is frozen, and standing still is
+      // what a person does almost all the time — so freezing by default made
+      // two people in one room invisible to each other within two seconds of
+      // opening the app. Rule three is an escape from being TRACKED.
+      final e = SwarmEngine();
+      expect(e.prey.hunted, isFalse);
+      e.destination = null;
+      for (var i = 0; i < 60 * 10; i++) {
+        e.update(1 / 60);
+      }
+      expect(e.prey.frozen, isFalse,
+          reason: 'ten seconds of stillness with no hunter must not hide you');
+    });
+
     test('standing still costs nothing — the freeze right is never priced', () {
       final e = SwarmEngine();
       final before = e.energy;

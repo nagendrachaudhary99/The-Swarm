@@ -691,12 +691,27 @@ class SwarmEngine extends ChangeNotifier {
   /// still is the whole mechanism, and it is available to everyone who is
   /// being hunted for as long as they are willing to stop walking.
   void _stillness(double dt) {
+    // Freezing is an ESCAPE, not a resting state, and conflating the two made
+    // everybody invisible to everybody.
+    //
+    // sweep() drops whispers whose author is frozen — correctly, because a
+    // dissolved signal has to be dissolved to everyone. But standing still is
+    // what a person does almost all of the time: a phone on a table is still,
+    // and reading a whisper is still. So freezing on stillness alone meant two
+    // people in the same room both went dark within two seconds of opening the
+    // app and neither could see anything the other said.
+    //
+    // Rule three is "anyone TRACKED is notified and can dissolve their signal
+    // by standing still". Nobody tracking you means nothing to escape from.
+    if (!prey.hunted) {
+      _stillFor = 0;
+      _thaw();
+      return;
+    }
+
     if (destination != null) {
       _stillFor = 0;
-      if (_serverFrozen) {
-        _serverFrozen = false;
-        unawaited(api!.freezeSignal(false).catchError((_) => false));
-      }
+      _thaw();
       return;
     }
 
@@ -706,10 +721,14 @@ class SwarmEngine extends ChangeNotifier {
     if (_stillFor > 1.5 && !_serverFrozen) {
       _serverFrozen = true;
       unawaited(api!.freezeSignal(true).catchError((_) => false));
-      if (prey.hunted) {
-        onToast?.call('❄ holding still · your signal is dissolving');
-      }
+      onToast?.call('❄ holding still · your signal is dissolving');
     }
+  }
+
+  void _thaw() {
+    if (!_serverFrozen) return;
+    _serverFrozen = false;
+    unawaited(api!.freezeSignal(false).catchError((_) => false));
   }
 
   Future<void> _tickHunt() async {
