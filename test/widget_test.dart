@@ -8,6 +8,7 @@ import 'package:swarm/models/swarm_class.dart';
 import 'package:swarm/models/whisper.dart';
 import 'package:swarm/painters/sonar_painter.dart';
 import 'package:swarm/widgets/ground.dart';
+import 'package:swarm/models/bloom.dart';
 import 'package:swarm/models/campus.dart';
 
 void main() {
@@ -264,6 +265,33 @@ void main() {
         expect(SwarmApi.lens(z), SwarmApi.lens(z + 0.001),
             reason: 'zoom $z must sit exactly on a tier boundary');
       }
+    });
+
+    test('the screen can tell the engine what is actually visible', () {
+      // A desktop window shows a slice about 137 m tall while a sweep reaches
+      // 140, so the engine has to know the slice to pick a visible angle. The
+      // angle is invented either way — the server sends a band and never a
+      // bearing — so choosing a visible one costs nothing and is not a
+      // compromise of anything.
+      final e = SwarmEngine();
+      expect(e.viewport, isNull, reason: 'unset until a screen measures one');
+
+      const slice = Rect.fromLTWH(40, 150, 160, 120);
+      e.viewport = slice;
+      expect(e.viewport, slice);
+      expect(e.viewport!.contains(e.viewport!.center), isTrue);
+    });
+
+    test('the bloom you picked is the bloom the server is told about', () {
+      // Hardcoding 'nightly' made the local copy outlive the server's, so the
+      // author was the one person who could not see the whisper expire.
+      final e = SwarmEngine();
+      expect(e.bloom.id, 'nightly');
+      final exam = kBlooms.firstWhere((b) => b.id == 'exam');
+      e.setBloom(exam);
+      expect(e.bloom.id, 'exam');
+      expect(e.bloom.lifeMultiplier, greaterThan(1),
+          reason: 'and the server has a matching branch for that id');
     });
 
     test('a boost is felt immediately, not a round trip later', () {

@@ -144,6 +144,18 @@ class SwarmEngine extends ChangeNotifier {
   /// the whole point of the floor is that asking again does not help.
   bool mirageLatched = false;
 
+  /// The slice of the world actually on screen, in metres, inset for the HUD
+  /// and the dock. Set by the screen, which is the only thing that knows.
+  ///
+  /// This exists because a whisper's ANGLE is arbitrary — the server sends a
+  /// band and never a bearing, so the direction on screen is invented. There
+  /// is therefore no reason at all to invent one that puts the bubble outside
+  /// the window, and every reason not to: on a desktop the visible strip is
+  /// about 137 metres tall while a sweep reaches 140, so a vertical angle put
+  /// the whisper off-screen with no way to reach it. The transform is fixed by
+  /// MapTransform.cover, so zooming the map cannot bring it back.
+  Rect? viewport;
+
   /// What the ground is currently showing. Set by the screen when the map
   /// camera moves; drives how far a sweep reaches and how loud a whisper has
   /// to be to survive that distance.
@@ -267,11 +279,10 @@ class SwarmEngine extends ChangeNotifier {
           continue;
         }
         final metres = _metresFor(r.band);
-        final angle = _rng.nextDouble() * pi * 2;
         final w = Whisper(
           id: _nextId++,
           body: r.body,
-          pos: _clampWorld(you + Offset(cos(angle), sin(angle)) * metres),
+          pos: _placeAt(metres),
           drift: Offset(_rng.nextDouble() - .5, _rng.nextDouble() - .5) * 0.7,
           life: r.remaining.inSeconds.toDouble().clamp(4, 90),
         )
@@ -287,6 +298,41 @@ class SwarmEngine extends ChangeNotifier {
       _say('the water went quiet · check the connection', alert: true);
     }
     notifyListeners();
+  }
+
+  /// Put a whisper at a true distance and an angle you can actually see.
+  ///
+  /// The distance is the honest part and is never touched. The angle is
+  /// invented — there is no bearing in any payload and there never will be —
+  /// so it is chosen from whichever directions land inside the window. A
+  /// bubble the sweep found and the screen cannot show is indistinguishable,
+  /// to the person holding the phone, from a sweep that found nothing.
+  Offset _placeAt(double metres) {
+    final view = viewport;
+    final start = _rng.nextDouble() * pi * 2;
+
+    if (view != null && !view.isEmpty) {
+      // Sixteen tries around the circle from a random start, so the direction
+      // is still unpredictable rather than always, say, east.
+      for (var i = 0; i < 16; i++) {
+        final a = start + i * pi / 8;
+        final p = you + Offset(cos(a), sin(a)) * metres;
+        if (view.contains(p)) return _clampWorld(p);
+      }
+
+      // Nothing at that radius fits — the whisper is further away than the
+      // window is tall. Put it at the edge in a visible direction rather than
+      // hiding it: the band on the bubble still tells the truth about how far.
+      final c = view.center;
+      final toCentre = atan2(c.dy - you.dy, c.dx - you.dx);
+      final p = you + Offset(cos(toCentre), sin(toCentre)) * metres;
+      return Offset(
+        p.dx.clamp(view.left, view.right),
+        p.dy.clamp(view.top, view.bottom),
+      );
+    }
+
+    return _clampWorld(you + Offset(cos(start), sin(start)) * metres);
   }
 
   /// Turn a band back into a plausible distance. The server refuses to be more
@@ -367,7 +413,14 @@ class SwarmEngine extends ChangeNotifier {
   }
 
   void postWhisper(String body) {
-    if (live) unawaited(api!.post(body, bloom: 'nightly'));
+    // `bloom.id`, not 'nightly'. Hardcoding it meant the bloom you picked
+    // changed how long the whisper lived on YOUR screen — lifeMultiplier is
+    // applied locally a few lines down — while the server went on killing it
+    // at twenty-two seconds. So the two copies disagreed: you could still read
+    // your own whisper long after everyone else's sweep had dropped it, which
+    // is the most confusing possible version of this bug, because the person
+    // who posted it is the one person who cannot notice.
+    if (live) unawaited(api!.post(body, bloom: bloom.id));
     final w = _spawn(body, at: you, mine: true);
     w.revealed = true;
     if (megaphoneOn) w.life *= 2;

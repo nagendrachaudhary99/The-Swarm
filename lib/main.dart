@@ -49,10 +49,23 @@ Future<({double lat, double lon})> whereAmI() async {
     }
   } catch (_) {/* desktop, web without permission, simulator */}
 
+  // Scatter, so two windows on one laptop are not standing on the same pixel —
+  // but scatter that FITS INSIDE A SWEEP.
+  //
+  // This was ±0.001°, which is ±111 m, applied independently to each client.
+  // Two people with location off could therefore land 311 m apart while
+  // sitting at the same table, and the sweep only reaches 140 m. It was random
+  // per page load, so the app worked, then didn't, then did, with nothing on
+  // screen to explain any of it — the worst kind of broken.
+  //
+  // ±0.00025° is ±28 m, so the worst case is 78 m apart: always inside the
+  // opening lens, still far enough to read as a real distance rather than as
+  // the ten-metre floor.
+  const spread = 0.0005; // (rand - .5) * spread  ->  ±0.00025°
   final r = Random();
   return (
-    lat: Config.fallbackLat + (r.nextDouble() - .5) * 0.002,
-    lon: Config.fallbackLon + (r.nextDouble() - .5) * 0.002,
+    lat: Config.fallbackLat + (r.nextDouble() - .5) * spread,
+    lon: Config.fallbackLon + (r.nextDouble() - .5) * spread,
   );
 }
 

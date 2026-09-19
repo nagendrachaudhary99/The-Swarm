@@ -106,6 +106,15 @@ class _EmergenceScreenState extends State<EmergenceScreen>
           final view = Size(constraints.maxWidth, constraints.maxHeight);
           final tf = MapTransform.cover(view, Campus.world);
 
+          // Tell the engine what is actually on screen, so a whisper it finds
+          // is a whisper you can see. Inset for the HUD above and the dock
+          // below, and by half a bubble at the sides — a band readout hanging
+          // off the edge of the window is the same as no bubble at all.
+          _engine.viewport = Rect.fromPoints(
+            tf.toWorld(const Offset(110, 250)),
+            tf.toWorld(Offset(view.width - 110, view.height - 130)),
+          );
+
           return Stack(
             children: [
               // --- the real world, when there is a key for it ---
