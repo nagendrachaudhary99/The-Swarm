@@ -69,7 +69,7 @@ class _EmergenceScreenState extends State<EmergenceScreen>
       await api.beacon(at.lat, at.lon);
       if (!mounted) return;
       setState(() {
-        _engine.api = api;
+        _engine.goLive(api);
         _at = at;
       });
       _showToast('◉ live on campus');

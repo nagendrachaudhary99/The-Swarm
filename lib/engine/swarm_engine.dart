@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 
 import '../data/swarm_api.dart';
 import '../data/whisper_pool.dart';
@@ -497,6 +498,57 @@ class SwarmEngine extends ChangeNotifier {
   }
 
   // ------------------------------------------------------------- live hunts
+
+  /// Join the real campus.
+  ///
+  /// Attaching the API is not enough on its own: rule three says being hunted
+  /// is *announced*, and a three-second poll is not an announcement — it is a
+  /// delay with a promise attached. So this also opens the socket that makes
+  /// the telling immediate. The poll stays as the floor under it, because a
+  /// dropped socket must not quietly switch the rule off.
+  void goLive(SwarmApi attach) {
+    api = attach;
+    final open = _alerts;
+    if (open != null) unawaited(attach.drop(open));
+    _alerts = null;
+
+    try {
+      _alerts = attach.liveHunted((band) {
+        // Push, not poll. The row that triggered this has no hunter column in
+        // it, which is the only reason a socket on that table is safe to open.
+        final was = prey;
+        prey = HuntedState(
+          hunters: was.hunters == 0 ? 1 : was.hunters,
+          nearest: band,
+          frozen: was.frozen,
+        );
+        if (!was.hunted) {
+          onToast?.call('◎ someone is tracking you · stand still to dissolve');
+          _say('you are being hunted · stop walking to disappear', alert: true);
+        }
+        notifyListeners();
+        // Reconcile against the authoritative count promptly; the socket knows
+        // a hunt started, not how many are running.
+        _preyClock = 3;
+      });
+    } catch (e) {
+      // A refused socket is survivable — _tickPrey still runs. It is not
+      // survivable silently, because the guarantee is weaker without it.
+      liveError = e.toString();
+    }
+    notifyListeners();
+  }
+
+  RealtimeChannel? _alerts;
+
+  @override
+  void dispose() {
+    final c = _alerts;
+    final a = api;
+    if (c != null && a != null) unawaited(a.drop(c));
+    _alerts = null;
+    super.dispose();
+  }
 
   /// The two clocks that only tick when there is a server, plus the one rule
   /// that costs nothing and cannot be countered.
