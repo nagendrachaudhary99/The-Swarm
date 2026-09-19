@@ -34,7 +34,10 @@ Future<void> main() async {
 
 /// Ask the phone where it is; fall back to the pilot campus with a small
 /// scatter so two windows on one laptop are not standing in the same spot.
-Future<({double lat, double lon})> whereAmI() async {
+/// [real] says whether this came from the device or from the pilot fallback.
+/// It matters because the fallback is RANDOM: re-rolling it on a refresh would
+/// teleport a standing person across the campus every twenty seconds.
+Future<({double lat, double lon, bool real})> whereAmI() async {
   try {
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
@@ -45,7 +48,7 @@ Future<({double lat, double lon})> whereAmI() async {
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 8));
-      return (lat: p.latitude, lon: p.longitude);
+      return (lat: p.latitude, lon: p.longitude, real: true);
     }
   } catch (_) {/* desktop, web without permission, simulator */}
 
@@ -66,6 +69,7 @@ Future<({double lat, double lon})> whereAmI() async {
   return (
     lat: Config.fallbackLat + (r.nextDouble() - .5) * spread,
     lon: Config.fallbackLon + (r.nextDouble() - .5) * spread,
+    real: false,
   );
 }
 

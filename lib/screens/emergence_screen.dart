@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -28,7 +30,18 @@ class _EmergenceScreenState extends State<EmergenceScreen>
 
   /// Where the phone actually is, once it tells us. Until then the map sits on
   /// the pilot campus so the ground is never blank.
-  ({double lat, double lon})? _at;
+  ({double lat, double lon, bool real})? _at;
+
+  /// Keeps the beacon alive, and — when the device actually knows where it is
+  /// — keeps it TRUE.
+  ///
+  /// The beacon used to be pushed exactly once, on open. Three things went
+  /// wrong with that and none of them announced itself: walking across a real
+  /// campus never moved you, `reap()` deletes any beacon unseen for thirty
+  /// minutes so you silently dropped out of every sweep, and a hunt — which
+  /// measures between two live beacons — recomputed the same distance forever,
+  /// so a ring could never close and never reach the floor.
+  Timer? _beaconClock;
   double _zoom = 18;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
@@ -53,6 +66,7 @@ class _EmergenceScreenState extends State<EmergenceScreen>
 
   @override
   void dispose() {
+    _beaconClock?.cancel();
     _ticker.dispose();
     _engine.dispose();
     super.dispose();
@@ -72,9 +86,38 @@ class _EmergenceScreenState extends State<EmergenceScreen>
         _engine.goLive(api);
         _at = at;
       });
-      _showToast('◉ live on campus');
+      _showToast(at.real
+          ? '◉ live on campus'
+          : '◉ live · no location, placed on the pilot campus');
+
+      // Twenty seconds: well inside the thirty-minute reap, slow enough to be
+      // free, and fast enough that someone walking at the ring sees the band
+      // tighten while they walk rather than after they stop.
+      _beaconClock?.cancel();
+      _beaconClock =
+          Timer.periodic(const Duration(seconds: 20), (_) => _pushBeacon());
     } catch (e) {
       if (mounted) _showToast('◌ offline · running on the local pool');
+    }
+  }
+
+  Future<void> _pushBeacon() async {
+    final api = SwarmApi.ready ? SwarmApi.instance : null;
+    if (api == null || !api.signedIn) return;
+
+    try {
+      // Re-ask the device only when the device was answering. The fallback is
+      // randomised on every call, so re-rolling it would teleport a person who
+      // has not moved an inch — and to a hunter that reads as their target
+      // sprinting eighty metres sideways every twenty seconds.
+      final at = _at?.real == true ? await whereAmI() : _at;
+      if (at == null || !mounted) return;
+
+      await api.beacon(at.lat, at.lon);
+      if (mounted && at.real) setState(() => _at = at);
+    } catch (_) {
+      // A missed push is survivable: the next one is twenty seconds away and
+      // the reaper does not come for half an hour.
     }
   }
 
