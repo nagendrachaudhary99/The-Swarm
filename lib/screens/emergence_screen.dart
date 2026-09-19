@@ -53,6 +53,9 @@ class _EmergenceScreenState extends State<EmergenceScreen>
     super.initState();
     _engine = SwarmEngine()
       ..onToast = _showToast
+      // Before onMirage: `..` after an arrow lambda binds to the lambda's
+      // RESULT, not to the engine, so this has to come first.
+      ..onNeedsBeacon = _pushBeacon
       ..onMirage = (w) => showMirageSheet(context, _engine, w);
 
     _goLive();

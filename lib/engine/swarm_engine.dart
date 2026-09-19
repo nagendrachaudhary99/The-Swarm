@@ -420,9 +420,9 @@ class SwarmEngine extends ChangeNotifier {
     // your own whisper long after everyone else's sweep had dropped it, which
     // is the most confusing possible version of this bug, because the person
     // who posted it is the one person who cannot notice.
-    if (live) unawaited(api!.post(body, bloom: bloom.id));
     final w = _spawn(body, at: you, mine: true);
     w.revealed = true;
+    if (live) unawaited(_postRemote(body, w));
     if (megaphoneOn) w.life *= 2;
     w.incoming = [
       2 + _rng.nextDouble() * 4,
@@ -432,6 +432,59 @@ class SwarmEngine extends ChangeNotifier {
     onToast?.call('your whisper is in the water');
     notifyListeners();
   }
+
+  /// Put a whisper on the actual campus, and say so when it does not go.
+  ///
+  /// This used to be a bare `unawaited(api.post(...))`. The local copy is
+  /// spawned either way, so a server refusal looked exactly like success: your
+  /// whisper sat there on your own screen, reading perfectly, and had never
+  /// left the building. Two people can do that to each other all evening and
+  /// conclude the app is broken in some mysterious way, which is precisely
+  /// what happened.
+  ///
+  /// The common refusal is 'no beacon' — reap() deletes a beacon unseen for
+  /// thirty minutes, and until this session nothing refreshed it. So that one
+  /// is not merely reported, it is repaired: push a beacon, try once more.
+  Future<void> _postRemote(String body, Whisper w) async {
+    try {
+      w.remoteId = await api!.post(body, bloom: bloom.id);
+      liveError = null;
+      return;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+
+      if (msg.contains('no beacon') && onNeedsBeacon != null) {
+        try {
+          await onNeedsBeacon!();
+          w.remoteId = await api!.post(body, bloom: bloom.id);
+          liveError = null;
+          return;
+        } catch (_) {/* fall through to the honest message */}
+      }
+
+      liveError = e.toString();
+      w.stranded = true;
+
+      if (msg.contains('no beacon')) {
+        _say('you are not on the map yet · nobody could hear that',
+            alert: true);
+        onToast?.call('◌ no position yet · reopen the app');
+      } else if (msg.contains('blocked by filter')) {
+        onToast?.call('◌ that line was blocked');
+      } else if (msg.contains('muted') || msg.contains('suspended')) {
+        onToast?.call('◌ you cannot post right now');
+      } else {
+        _say('that whisper never left this phone', alert: true);
+        onToast?.call('◌ it did not reach the campus');
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Asked for when a post fails because the server has no position for you.
+  /// The engine works in metres and has never known a latitude; the screen
+  /// does, so it owns the repair.
+  Future<void> Function()? onNeedsBeacon;
 
   void dropSpore() {
     if (energy < sporeCost) return;

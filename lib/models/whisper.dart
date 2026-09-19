@@ -46,6 +46,11 @@ class Whisper {
   /// the offline pool. Null means it is simulated.
   String? remoteId;
 
+  /// Yours, written, and refused by the server — so it exists on this phone
+  /// and nowhere else. Worth drawing differently: a whisper nobody can hear
+  /// that looks identical to one everybody can is the cruellest possible bug.
+  bool stranded = false;
+
   /// Where its bubble ended up on screen, so the painter can draw a hairline
   /// back to the exact spot the whisper came from. Set by the screen.
   Offset? anchor;

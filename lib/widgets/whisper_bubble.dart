@@ -67,6 +67,27 @@ class WhisperBubble extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(whisper.body, style: Swarm.voice(size: 12.4)),
+                // A whisper the server refused is on this phone and nowhere
+                // else. It used to look identical to one the whole campus
+                // could hear, which is how two people spent an evening
+                // whispering at each other and hearing nothing back.
+                if (whisper.stranded) ...[
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      const Icon(Icons.cloud_off_rounded,
+                          size: 11, color: Swarm.rogue),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'never left this phone',
+                          style: Swarm.data(
+                              size: 8, color: Swarm.rogue, tracking: 1),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 7),
                 Row(
                   children: [
