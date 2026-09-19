@@ -71,8 +71,26 @@ echo
 # In order. Each one assumes the last has run: 002 turns every user column to
 # text, 004 closes leaks 003 opened, 006 replaces the sweep 005 defined.
 echo "── applying migrations ──────────────────────────────"
-for f in supabase/schema.sql \
-         supabase/002_clerk_identity.sql \
+
+# schema.sql is the ONLY file here that cannot be replayed.
+#
+# It defines every user column as uuid and compares them to auth.uid(). 002
+# then rewrites all of them to text and swaps auth.uid() for swarm_uid(), so
+# running schema.sql against a database that is already past 002 fails with
+# `operator does not exist: text = uuid` — it is not a broken migration, it is
+# a migration whose assumptions were deliberately replaced.
+#
+# swarm_uid() existing is the marker for "past 002". Everything from 002 on is
+# written to be re-runnable, so on an established database we simply start
+# there.
+MIGRATIONS="supabase/schema.sql supabase/002_clerk_identity.sql"
+if bash scripts/db.sh "select 1 from pg_proc where proname = 'swarm_uid' limit 1" \
+     2>/dev/null | grep -q '"?column?"'; then
+  echo "   schema.sql, 002              skipped (already past 002)"
+  MIGRATIONS=""
+fi
+
+for f in $MIGRATIONS \
          supabase/003_safety.sql \
          supabase/004_close_id_leaks.sql \
          supabase/005_rooms.sql \

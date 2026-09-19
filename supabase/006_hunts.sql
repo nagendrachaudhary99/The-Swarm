@@ -255,7 +255,11 @@ begin
     insert into hunt_alerts (quarry, hunt, band) values (h.quarry, h.id, b);
   end if;
 
-  update hunts set state = 'open' where id = h.id and state <> 'open';
+  -- `hunts.state`, not `state`. This function RETURNS TABLE (..., state text),
+  -- so the bare name is both an OUT parameter and a column here and Postgres
+  -- refuses to guess: 42702, and every live hunt tick failed on it. The SET
+  -- target is unambiguous; only the WHERE needed qualifying.
+  update hunts set state = 'open' where id = h.id and hunts.state <> 'open';
 
   return query select b, 'open'::text,
                       greatest(0, extract(epoch from h.dies_at - now())::int);
