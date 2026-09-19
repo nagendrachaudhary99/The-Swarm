@@ -176,6 +176,39 @@ void main() {
     });
   });
 
+  group('the lens', () {
+    // The regression this exists to prevent: the app opens at 17.4, and a
+    // brand-new whisper has zero boosts. A boost floor above zero at the
+    // opening zoom makes a fresh whisper invisible to everyone, including the
+    // people who would have boosted it. Nothing else in the app can recover
+    // from that, because the whisper is dead in twenty-two seconds.
+    test('a fresh whisper is visible at the zoom the app opens at', () {
+      const opening = 17.4;
+      expect(SwarmApi.lens(opening).minBoosts, 0,
+          reason: 'a 0-boost whisper must survive the default sweep');
+    });
+
+    test('pulling back asks for louder whispers, never quieter', () {
+      var last = -1;
+      for (final z in [19.0, 18.0, 16.5, 15.0, 13.5, 11.0]) {
+        final m = SwarmApi.lens(z).minBoosts;
+        expect(m, greaterThanOrEqualTo(last),
+            reason: 'zoom $z must not demand less than the tier above it');
+        last = m;
+      }
+    });
+
+    test('reach widens as the floor rises, so a tier is never strictly worse',
+        () {
+      var last = 0.0;
+      for (final z in [19.0, 18.0, 16.5, 15.0, 13.5, 11.0]) {
+        final r = SwarmApi.lens(z).radius;
+        expect(r, greaterThanOrEqualTo(last));
+        last = r;
+      }
+    });
+  });
+
   test('the painter renders a full frame without throwing', () async {
     await SonarPainter.warmUp();
 
