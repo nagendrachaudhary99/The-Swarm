@@ -145,7 +145,18 @@ class _GateScreenState extends State<GateScreen>
         setState(() {
           if (msg.contains('invalid login credentials') ||
               msg.contains('invalid_credentials')) {
-            _error = 'That email/password combination did not match.';
+            // Supabase cannot distinguish "no such address" from "wrong
+            // password", and deliberately will not — that difference is an
+            // account-existence oracle. So the message names the other likely
+            // cause, because a mistyped address fails identically and looks
+            // for all the world like a forgotten password.
+            _error = 'That email and password did not match.\n\n'
+                'Check the address for a typo — a misspelled one fails '
+                'exactly like a wrong password.';
+          } else if (msg.contains('email not confirmed')) {
+            _error = 'That account was never confirmed, and this project '
+                'cannot send the mail to confirm it. Create a new account '
+                'instead — signing up needs no email.';
           } else if (msg.contains('already registered') ||
               msg.contains('user_already_exists')) {
             _error =
@@ -238,8 +249,22 @@ class _GateScreenState extends State<GateScreen>
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().toLowerCase();
         setState(() {
-          _error = 'Could not send the password reset.\n\n$e';
+          // A project with no SMTP configured answers this with a 500 and
+          // "Error sending recovery email". That is not a bug in the app and
+          // retrying will never fix it, so say the true thing instead of
+          // showing a stack trace to someone who is just locked out.
+          _error = msg.contains('error sending') ||
+                  msg.contains('unexpected_failure') ||
+                  msg.contains('500')
+              ? 'Password recovery needs an email server, and this project '
+                  'does not have one yet.\n\n'
+                  'Nothing you do here will send it. Make a new account with '
+                  'the address you want — signing up takes no email at all.'
+              : msg.contains('rate') || msg.contains('429')
+                  ? 'Too many attempts. Wait a minute and try again.'
+                  : 'Could not send the password reset.\n\n$e';
         });
       }
     } finally {
