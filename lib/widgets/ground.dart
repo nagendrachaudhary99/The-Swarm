@@ -22,7 +22,7 @@ class Ground extends StatelessWidget {
     super.key,
     required this.lat,
     required this.lon,
-    this.zoom = 17.4,
+    this.zoom = 18,
     this.onZoom,
   });
 

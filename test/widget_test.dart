@@ -7,6 +7,7 @@ import 'package:swarm/engine/swarm_engine.dart';
 import 'package:swarm/models/swarm_class.dart';
 import 'package:swarm/models/whisper.dart';
 import 'package:swarm/painters/sonar_painter.dart';
+import 'package:swarm/widgets/ground.dart';
 import 'package:swarm/models/campus.dart';
 
 void main() {
@@ -177,15 +178,26 @@ void main() {
   });
 
   group('the lens', () {
-    // The regression this exists to prevent: the app opens at 17.4, and a
-    // brand-new whisper has zero boosts. A boost floor above zero at the
-    // opening zoom makes a fresh whisper invisible to everyone, including the
-    // people who would have boosted it. Nothing else in the app can recover
-    // from that, because the whisper is dead in twenty-two seconds.
+    // `lens` is the whole map idea: zoom in and everything nearby is legible,
+    // pull back and only the loud carry. These guard the two ways that ladder
+    // breaks — opening on a rung that already filters (so a new whisper is
+    // born invisible and dies in 22 seconds), and the rungs drifting so that
+    // pulling back asks for less rather than more.
     test('a fresh whisper is visible at the zoom the app opens at', () {
-      const opening = 17.4;
+      // Deliberately read from the engine rather than hardcoding a number:
+      // the invariant is about whatever zoom the app opens on, not about the
+      // value it happens to hold today.
+      final opening = SwarmEngine().zoom;
       expect(SwarmApi.lens(opening).minBoosts, 0,
-          reason: 'a 0-boost whisper must survive the default sweep');
+          reason: 'a whisper is posted with 0 boosts. If the opening rung '
+              'demands more, a new whisper is invisible to everyone — '
+              'including whoever would have boosted it.');
+    });
+
+    test('the map and the engine open on the same rung', () {
+      // Three files hold this number. If they drift, the HUD describes one
+      // lens while the sweep uses another.
+      expect(const Ground(lat: 0, lon: 0).zoom, SwarmEngine().zoom);
     });
 
     test('pulling back asks for louder whispers, never quieter', () {
@@ -206,6 +218,23 @@ void main() {
         expect(r, greaterThanOrEqualTo(last));
         last = r;
       }
+    });
+
+    test('the HUD readout cannot describe a lens the sweep is not using', () {
+      final e = SwarmEngine()..zoom = 14;
+      expect(e.lensNow, SwarmApi.lens(14));
+      e.zoom = 19;
+      expect(e.lensNow, SwarmApi.lens(19));
+    });
+
+    test('a boost is felt immediately, not a round trip later', () {
+      final e = SwarmEngine();
+      final w = e.whispers.first..revealed = true;
+      expect(w.boosts, 0);
+      e.boost(w);
+      expect(w.boosts, 1, reason: 'the number the person just pressed moves');
+      e.boost(w);
+      expect(w.boosts, 1, reason: 'once per whisper, ever');
     });
   });
 

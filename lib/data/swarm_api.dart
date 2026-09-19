@@ -345,14 +345,12 @@ class SwarmApi {
   /// zoom 13 is the whole city and only the loudest thing on campus survives
   /// it.
   static ({double radius, int minBoosts}) lens(double zoom) {
+    // The bottom rung shows everything within earshot, and it is the rung the
+    // app must OPEN on — a whisper is posted with zero boosts, so opening on
+    // any tier above this one makes a new whisper invisible to everyone,
+    // including the people who would have boosted it. See `Ground.zoom`.
     if (zoom >= 18) return (radius: 140, minBoosts: 0);
-    // 0, not 1. A new whisper has no boosts, so a floor of 1 here meant it was
-    // invisible until someone boosted it — and nobody could, because nobody
-    // could see it. The app opens at 17.4, so that deadlock was the DEFAULT
-    // experience: post a whisper, sweep, find nothing, conclude it is broken.
-    // Three hundred metres is still a walkable block; the soup this ladder
-    // exists to prevent starts at the tier below.
-    if (zoom >= 16.5) return (radius: 320, minBoosts: 0);
+    if (zoom >= 16.5) return (radius: 320, minBoosts: 1);
     if (zoom >= 15) return (radius: 700, minBoosts: 3);
     if (zoom >= 13.5) return (radius: 1600, minBoosts: 8);
     return (radius: 4000, minBoosts: 20);

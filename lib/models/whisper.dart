@@ -23,7 +23,15 @@ class Whisper {
   Offset drift;
 
   bool revealed = false;
+
+  /// Whether YOU boosted it — once, ever.
   bool boosted = false;
+
+  /// How many people boosted it, which is the only measure of virality the
+  /// app has. It decides what survives when the map is pulled back: zooming
+  /// out raises the floor, so a quiet whisper drops out and a loud one is
+  /// still legible from across the campus. See `SwarmApi.lens`.
+  int boosts = 0;
   double age = 0;
   double aliveFor = 0;
   double life;

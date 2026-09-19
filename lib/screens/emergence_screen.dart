@@ -29,7 +29,7 @@ class _EmergenceScreenState extends State<EmergenceScreen>
   /// Where the phone actually is, once it tells us. Until then the map sits on
   /// the pilot campus so the ground is never blank.
   ({double lat, double lon})? _at;
-  double _zoom = 17.4;
+  double _zoom = 18;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
 

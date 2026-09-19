@@ -119,6 +119,8 @@ class Hud extends StatelessWidget {
               ),
             ),
           ]),
+          const SizedBox(height: 8),
+          _Lens(engine: engine),
           // Rule three, on screen rather than in a toast that fades. Someone
           // being hunted is entitled to know it for as long as it is true, and
           // to be told the one thing that ends it.
@@ -126,6 +128,59 @@ class Hud extends StatelessWidget {
             const SizedBox(height: 8),
             _Hunted(prey: engine.prey),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// What the current zoom is showing, in the only two numbers that matter:
+/// how far the sweep reaches, and how loud a whisper has to be to carry that
+/// far. Without this, pulling the map back looks like whispers disappearing
+/// for no reason — which is a bug report, not a mechanic.
+class _Lens extends StatelessWidget {
+  const _Lens({required this.engine});
+
+  final SwarmEngine engine;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = engine.lensNow;
+    final wide = l.minBoosts > 0;
+    final tint = wide ? Swarm.bard : Swarm.plankton;
+
+    return _Glass(
+      radius: 9,
+      border: tint.withValues(alpha: .28),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      child: Row(
+        children: [
+          Icon(
+            engine.reframing
+                ? Icons.autorenew_rounded
+                : wide
+                    ? Icons.travel_explore_rounded
+                    : Icons.my_location_rounded,
+            size: 12,
+            color: tint,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              engine.reframing
+                  ? 'redrawing at this scale…'
+                  : wide
+                      // Pulling back is a trade, and naming it is what makes
+                      // the gesture worth making.
+                      ? 'only ${l.minBoosts}+ boosted carry this far'
+                      : 'every whisper within earshot',
+              style: Swarm.voice(size: 11.8, color: Swarm.fog),
+            ),
+          ),
+          Text(
+            '${l.radius.round()}m',
+            style: Swarm.data(size: 9.5, color: tint, tracking: 1.2),
+          ),
         ],
       ),
     );

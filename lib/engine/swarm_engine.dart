@@ -147,7 +147,7 @@ class SwarmEngine extends ChangeNotifier {
   /// What the ground is currently showing. Set by the screen when the map
   /// camera moves; drives how far a sweep reaches and how loud a whisper has
   /// to be to survive that distance.
-  double zoom = 17.4;
+  double zoom = 18;
   bool get live => api != null;
   String? liveError;
   String hint = 'tap the dark to walk · sim ×10';
@@ -172,6 +172,10 @@ class SwarmEngine extends ChangeNotifier {
           : glow >= 30
               ? 'TIDEPOOL'
               : 'SPARK';
+
+  /// What the current zoom is showing. One place, so the HUD cannot describe
+  /// a lens the sweep is not actually using.
+  ({double radius, int minBoosts}) get lensNow => SwarmApi.lens(zoom);
 
   double distanceTo(Whisper w) => (w.pos - you).distance;
   Band bandTo(Whisper w) => BandX.of(distanceTo(w));
@@ -236,7 +240,15 @@ class SwarmEngine extends ChangeNotifier {
       final seen = <String>{};
       for (final r in rows) {
         seen.add(r.id);
-        if (whispers.any((w) => w.remoteId == r.id)) continue;
+        // Already on screen: refresh how loud it is rather than skipping it.
+        // Virality is the one property that changes while you watch, and it
+        // decides whether this whisper survives the next pull-back.
+        final existing =
+            whispers.where((w) => w.remoteId == r.id).firstOrNull;
+        if (existing != null) {
+          existing.boosts = r.boosts;
+          continue;
+        }
         final metres = _metresFor(r.band);
         final angle = _rng.nextDouble() * pi * 2;
         final w = Whisper(
@@ -247,7 +259,8 @@ class SwarmEngine extends ChangeNotifier {
           life: r.remaining.inSeconds.toDouble().clamp(4, 90),
         )
           ..revealed = true
-          ..remoteId = r.id;
+          ..remoteId = r.id
+          ..boosts = r.boosts;
         whispers.add(w);
         caughtThisSweep++;
       }
@@ -274,6 +287,10 @@ class SwarmEngine extends ChangeNotifier {
   void boost(Whisper w) {
     if (w.boosted) return;
     w.boosted = true;
+    // Optimistic: the next sweep reconciles this against the server's count,
+    // which is the authority. Waiting for that round trip to move a number the
+    // person just pressed is how an app feels broken.
+    w.boosts++;
     if (live && w.remoteId != null) unawaited(api!.boost(w.remoteId!));
     w.life += 4;
     given++;
@@ -471,6 +488,7 @@ class SwarmEngine extends ChangeNotifier {
     _topUp(dt);
     _bloomSpores();
     _liveHunt(dt);
+    _lensWatch(dt);
 
     bursts.removeWhere((b) {
       b.t += dt;
@@ -494,6 +512,82 @@ class SwarmEngine extends ChangeNotifier {
       if (wake.length > 46) wake.removeAt(0);
     }
 
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------ the lens
+
+  /// Which rung of `SwarmApi.lens` is currently on screen, and how long since
+  /// the pinch stopped moving.
+  ({double radius, int minBoosts}) _lens = SwarmApi.lens(18);
+  double _lensSettle = 0;
+
+  /// True while the map is being redrawn at a new scale. The HUD says so,
+  /// because otherwise pulling back looks like whispers vanishing for no
+  /// reason.
+  bool reframing = false;
+
+  /// Zooming is a question, and until now nothing answered it.
+  ///
+  /// The map's zoom has always decided what a sweep is *allowed* to return —
+  /// that is what `lens` is for — but the only thing that ever re-asked the
+  /// server was `ping()`. So you pulled the map back, the lens widened, and
+  /// the screen kept showing the same close-in whispers until you spent eight
+  /// energy on another ping. The single gesture the whole map idea rests on
+  /// did nothing at all.
+  ///
+  /// This is not a ping and costs no energy. A ping is a thing you fire into
+  /// the dark. This is the dark being redrawn at the scale you asked for.
+  void _lensWatch(double dt) {
+    if (!live) return;
+
+    final now = SwarmApi.lens(zoom);
+    if (now.radius != _lens.radius || now.minBoosts != _lens.minBoosts) {
+      _lens = now;
+      // A pinch crosses several rungs on the way past. Each one is not a
+      // separate question, so the clock restarts rather than accumulating.
+      _lensSettle = .45;
+      return;
+    }
+
+    if (_lensSettle > 0) {
+      _lensSettle -= dt;
+      if (_lensSettle <= 0) unawaited(_reframe());
+    }
+  }
+
+  /// Re-ask the campus what is visible at this scale.
+  Future<void> _reframe() async {
+    final floor = SwarmApi.lens(zoom).minBoosts;
+
+    // Pulling back raises the floor, so whatever no longer clears it stops
+    // being drawn. This is the half that makes zooming out mean something:
+    // fewer, louder, further away. Your own whisper always survives — you are
+    // allowed to see the thing you just said.
+    final gone = whispers
+        .where((w) => w.remoteId != null && !w.mine && w.boosts < floor)
+        .toList();
+
+    for (final w in gone) {
+      if (identical(target, w)) {
+        target = null;
+        hunt = HuntTick.none;
+        mirageLatched = false;
+        unawaited(api!.huntDrop());
+        _say('tracking dropped · too quiet to see from this far out');
+      }
+      whispers.remove(w);
+    }
+
+    reframing = true;
+    notifyListeners();
+
+    await _remoteSweep();
+
+    reframing = false;
+    _say(floor == 0
+        ? 'everything within earshot'
+        : 'only whispers with $floor+ boosts carry this far');
     notifyListeners();
   }
 

@@ -71,7 +71,14 @@ class WhisperBubble extends StatelessWidget {
                 Row(
                   children: [
                     _Mini(
-                      label: whisper.boosted ? '◍ boosted' : '◍ boost',
+                      // The count is the whole reason a whisper survives being
+                      // zoomed away from, so it is on the face of it rather
+                      // than hidden behind a tap.
+                      label: whisper.boosts > 0
+                          ? '◍ ${whisper.boosts}'
+                          : whisper.boosted
+                              ? '◍ boosted'
+                              : '◍ boost',
                       active: whisper.boosted,
                       onTap: () => engine.boost(whisper),
                     ),
