@@ -20,6 +20,33 @@ class GateScreen extends StatefulWidget {
 
 enum _AuthMode { signIn, signUp }
 
+/// The doors this screen is willing to show.
+///
+/// Showing one is not the same as it working. Each still has to be switched on
+/// in Supabase → Authentication → Providers with a client id and secret issued
+/// by that provider, and no code in this repo can conjure those — they are
+/// minted against someone's account, by that someone.
+///
+/// A provider listed here but not enabled upstream fails with a message that
+/// says so, which is deliberately better than hiding the button: a door that
+/// is missing reads as a broken app, and a door that says "not unlocked yet"
+/// reads as a setup step.
+enum _Provider {
+  google(OAuthProvider.google, 'Google', Icons.g_mobiledata_rounded),
+  github(OAuthProvider.github, 'GitHub', Icons.code_rounded),
+  discord(OAuthProvider.discord, 'Discord', Icons.forum_rounded),
+  apple(OAuthProvider.apple, 'Apple', Icons.apple_rounded);
+
+  const _Provider(this.provider, this.label, this.icon);
+
+  final OAuthProvider provider;
+  final String label;
+  final IconData icon;
+
+  /// Google keeps the wide button and its real mark; the rest share a row.
+  static const rest = [_Provider.github, _Provider.discord, _Provider.apple];
+}
+
 class _GateScreenState extends State<GateScreen>
     with SingleTickerProviderStateMixin {
   final _email = TextEditingController();
@@ -140,7 +167,7 @@ class _GateScreenState extends State<GateScreen>
     }
   }
 
-  Future<void> _google() async {
+  Future<void> _oauth(_Provider p) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -148,7 +175,7 @@ class _GateScreenState extends State<GateScreen>
     });
 
     try {
-      await SwarmApi.instance.signInWith(OAuthProvider.google);
+      await SwarmApi.instance.signInWith(p.provider);
 
       // On web the page normally navigates away. On mobile the session comes
       // back through the configured deep link and the root handles it.
@@ -157,7 +184,18 @@ class _GateScreenState extends State<GateScreen>
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = 'Google would not open.\n\n$e';
+          // A provider that is in this list but not switched on in the
+          // dashboard fails here, and the message says which half is missing
+          // — otherwise it reads as "the app is broken" rather than "that
+          // door was never unlocked".
+          final msg = e.toString().toLowerCase();
+          _error = msg.contains('not enabled') ||
+                  msg.contains('unsupported') ||
+                  msg.contains('provider')
+              ? '${p.label} is not switched on for this project yet.\n\n'
+                  'Enable it in Supabase → Authentication → Providers, '
+                  'or use your college email and a password below.'
+              : '${p.label} would not open.\n\n$e';
         });
       }
     }
@@ -267,13 +305,25 @@ class _GateScreenState extends State<GateScreen>
                               ? 'Create an account with your college email and '
                                   'a password. Your campus domain is still the '
                                   'membership test.'
-                              : 'One campus, no names. Sign in with your college '
-                                  'email and password, or continue with Google.',
+                              : 'One campus, no names. Use a provider above, or your '
+                                  'college email and a password.',
                           textAlign: TextAlign.center,
                           style: Swarm.voice(size: 14.5, color: Swarm.fog),
                         ),
                         const SizedBox(height: 26),
                         _googleButton(),
+                        if (_Provider.rest.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              for (final p in _Provider.rest) ...[
+                                Expanded(child: _providerButton(p)),
+                                if (p != _Provider.rest.last)
+                                  const SizedBox(width: 10),
+                              ],
+                            ],
+                          ),
+                        ],
                         const SizedBox(height: 18),
                         _or(),
                         const SizedBox(height: 18),
@@ -352,8 +402,35 @@ class _GateScreenState extends State<GateScreen>
     );
   }
 
+  /// The secondary doors. Icon and word only — a row of full-width buttons
+  /// turns a sign-in screen into a menu, and the point of this screen is that
+  /// getting in is not a decision worth deliberating over.
+  Widget _providerButton(_Provider p) => GestureDetector(
+        onTap: _busy ? null : () => _oauth(p),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            color: Swarm.foam.withValues(alpha: .04),
+            border: Border.all(color: Swarm.line),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(p.icon, size: 15, color: Swarm.fog),
+              const SizedBox(width: 7),
+              Text(
+                p.label.toUpperCase(),
+                style: Swarm.data(size: 9, color: Swarm.fog, tracking: 1.2),
+              ),
+            ],
+          ),
+        ),
+      );
+
   Widget _googleButton() => GestureDetector(
-        onTap: _busy ? null : _google,
+        onTap: _busy ? null : () => _oauth(_Provider.google),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 15),
           alignment: Alignment.center,

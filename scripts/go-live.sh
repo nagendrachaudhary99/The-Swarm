@@ -79,16 +79,22 @@ bash scripts/set-auth-urls.sh
 echo
 
 # --------------------------------------------------------------- 4. google
-if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
-  echo "── auth: google ─────────────────────────────────────"
-  bash scripts/set-google-oauth.sh
-  echo
+echo "── auth: oauth providers ────────────────────────────"
+if [ -n "${GOOGLE_CLIENT_ID:-}${GITHUB_CLIENT_ID:-}${DISCORD_CLIENT_ID:-}${APPLE_CLIENT_ID:-}" ]; then
+  bash scripts/set-oauth.sh
 else
-  echo "── auth: google ─────────────────────────────────────"
-  echo "   skipped — no GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET."
-  echo "   Email + password works without it. The Google button will not."
+  echo "   skipped — no provider credentials in the environment."
   echo
+  echo "   Email + password works without any of this, and is the fastest"
+  echo "   way to get two people in tonight."
+  echo
+  echo "   The OAuth buttons will say 'not switched on for this project'"
+  echo "   until a client exists on the provider's side. Nothing in this"
+  echo "   repo can create one — they are minted against your account."
+  echo "   See the header of scripts/set-oauth.sh. GitHub is the fastest:"
+  echo "   github.com/settings/developers, about two minutes."
 fi
+echo
 
 # ---------------------------------------------------------------- 5. verify
 # Ask the database to prove the parts that matter are actually there, rather
