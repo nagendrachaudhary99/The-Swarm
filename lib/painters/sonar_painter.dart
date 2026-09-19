@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../engine/swarm_engine.dart';
 import '../models/bloom.dart';
 import '../models/campus.dart';
@@ -99,8 +100,14 @@ class SonarPainter extends CustomPainter {
     _ground(canvas, size);
     _grid(canvas, size);
     _contours(canvas);
-    _paths(canvas);
-    _buildings(canvas);
+    // The invented campus exists to give the dark something to be dark ABOUT.
+    // When a real map is underneath there is already a real campus down there,
+    // and drawing PHYS SCI on top of somebody's actual street is worse than
+    // drawing nothing: it is a second, wrong city.
+    if (!Config.hasMaps) {
+      _paths(canvas);
+      _buildings(canvas);
+    }
     _motesLayer(canvas, front: false);
     _spores(canvas);
     _unrevealed(canvas);
@@ -127,6 +134,30 @@ class SonarPainter extends CustomPainter {
   // The dark is centred on you — walking actually changes what the map feels like.
   void _ground(Canvas canvas, Size size) {
     final c = tf.toScreen(engine.you);
+
+    // This fill is OPAQUE — b.ground is 0xFF0B1724 and friends — which is
+    // correct when it is the only ground there is, and completely wrong when a
+    // Google map is sitting underneath it. It was painting over the real map
+    // on every frame, which looked exactly like the map failing to load.
+    //
+    // With a map present the same gradient is drawn at a fraction of its
+    // alpha: still centred on you, still darkest at the edges, so the sonar
+    // reads and the dark still closes in as you walk — but the city shows
+    // through it.
+    if (Config.hasMaps) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            c,
+            size.height * .9,
+            [for (final g in b.ground) g.withValues(alpha: .34)],
+            const [0.0, 0.34, 0.7, 1.0],
+          ),
+      );
+      return;
+    }
+
     canvas.drawRect(
       Offset.zero & size,
       Paint()
