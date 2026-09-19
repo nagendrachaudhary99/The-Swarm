@@ -623,6 +623,19 @@ class SwarmEngine extends ChangeNotifier {
     if (open != null) unawaited(attach.drop(open));
     _alerts = null;
 
+    // Clear any freeze left behind by a previous session, unconditionally.
+    //
+    // `frozen` lives on the server and outlives the tab that set it, but
+    // `_serverFrozen` starts false on every fresh load — so _thaw() would see
+    // "I did not freeze this" and leave a stale flag in place forever. A
+    // person who froze once then closed the app came back permanently
+    // invisible, with nothing on screen saying so.
+    //
+    // Opening the app is not an escape from anything: there is no hunt yet.
+    _serverFrozen = false;
+    _stillFor = 0;
+    unawaited(attach.freezeSignal(false).catchError((_) => false));
+
     try {
       _alerts = attach.liveHunted((band) {
         // Push, not poll. The row that triggered this has no hunter column in
