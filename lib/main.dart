@@ -34,7 +34,10 @@ Future<void> main() async {
 
 /// Ask the phone where it is; fall back to the pilot campus with a small
 /// scatter so two windows on one laptop are not standing in the same spot.
-Future<({double lat, double lon})> whereAmI() async {
+/// [real] says whether this came from the device or from the pilot fallback.
+/// It matters because the fallback is RANDOM: re-rolling it on a refresh would
+/// teleport a standing person across the campus every twenty seconds.
+Future<({double lat, double lon, bool real})> whereAmI() async {
   try {
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
@@ -45,14 +48,28 @@ Future<({double lat, double lon})> whereAmI() async {
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 8));
-      return (lat: p.latitude, lon: p.longitude);
+      return (lat: p.latitude, lon: p.longitude, real: true);
     }
   } catch (_) {/* desktop, web without permission, simulator */}
 
+  // Scatter, so two windows on one laptop are not standing on the same pixel —
+  // but scatter that FITS INSIDE A SWEEP.
+  //
+  // This was ±0.001°, which is ±111 m, applied independently to each client.
+  // Two people with location off could therefore land 311 m apart while
+  // sitting at the same table, and the sweep only reaches 140 m. It was random
+  // per page load, so the app worked, then didn't, then did, with nothing on
+  // screen to explain any of it — the worst kind of broken.
+  //
+  // ±0.00025° is ±28 m, so the worst case is 78 m apart: always inside the
+  // opening lens, still far enough to read as a real distance rather than as
+  // the ten-metre floor.
+  const spread = 0.0005; // (rand - .5) * spread  ->  ±0.00025°
   final r = Random();
   return (
-    lat: Config.fallbackLat + (r.nextDouble() - .5) * 0.002,
-    lon: Config.fallbackLon + (r.nextDouble() - .5) * 0.002,
+    lat: Config.fallbackLat + (r.nextDouble() - .5) * spread,
+    lon: Config.fallbackLon + (r.nextDouble() - .5) * spread,
+    real: false,
   );
 }
 
@@ -123,7 +140,7 @@ class _RootState extends State<_Root> {
         ),
       );
     }
-    if (SwarmApi.ready && !SwarmApi.instance.signedIn) {
+    if (!Config.demo && SwarmApi.ready && !SwarmApi.instance.signedIn) {
       return GateScreen(onIn: () => setState(() {}));
     }
     return const EmergenceScreen();

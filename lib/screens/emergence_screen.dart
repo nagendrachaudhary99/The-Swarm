@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../config.dart';
 import '../data/swarm_api.dart';
 import '../engine/swarm_engine.dart';
 import '../main.dart' show whereAmI;
@@ -8,7 +11,9 @@ import '../models/campus.dart';
 import '../painters/sonar_painter.dart';
 import '../theme.dart';
 import '../widgets/dock.dart';
+import '../widgets/ground.dart';
 import '../widgets/hud.dart';
+import '../widgets/rooms.dart';
 import '../widgets/sheets.dart';
 import '../widgets/whisper_bubble.dart';
 
@@ -22,6 +27,22 @@ class EmergenceScreen extends StatefulWidget {
 class _EmergenceScreenState extends State<EmergenceScreen>
     with SingleTickerProviderStateMixin {
   late final SwarmEngine _engine;
+
+  /// Where the phone actually is, once it tells us. Until then the map sits on
+  /// the pilot campus so the ground is never blank.
+  ({double lat, double lon, bool real})? _at;
+
+  /// Keeps the beacon alive, and — when the device actually knows where it is
+  /// — keeps it TRUE.
+  ///
+  /// The beacon used to be pushed exactly once, on open. Three things went
+  /// wrong with that and none of them announced itself: walking across a real
+  /// campus never moved you, `reap()` deletes any beacon unseen for thirty
+  /// minutes so you silently dropped out of every sweep, and a hunt — which
+  /// measures between two live beacons — recomputed the same distance forever,
+  /// so a ring could never close and never reach the floor.
+  Timer? _beaconClock;
+  double _zoom = 18;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
 
@@ -32,6 +53,9 @@ class _EmergenceScreenState extends State<EmergenceScreen>
     super.initState();
     _engine = SwarmEngine()
       ..onToast = _showToast
+      // Before onMirage: `..` after an arrow lambda binds to the lambda's
+      // RESULT, not to the engine, so this has to come first.
+      ..onNeedsBeacon = _pushBeacon
       ..onMirage = (w) => showMirageSheet(context, _engine, w);
 
     _goLive();
@@ -45,6 +69,7 @@ class _EmergenceScreenState extends State<EmergenceScreen>
 
   @override
   void dispose() {
+    _beaconClock?.cancel();
     _ticker.dispose();
     _engine.dispose();
     super.dispose();
@@ -60,10 +85,42 @@ class _EmergenceScreenState extends State<EmergenceScreen>
       final at = await whereAmI();
       await api.beacon(at.lat, at.lon);
       if (!mounted) return;
-      setState(() => _engine.api = api);
-      _showToast('◉ live on campus');
+      setState(() {
+        _engine.goLive(api);
+        _at = at;
+      });
+      _showToast(at.real
+          ? '◉ live on campus'
+          : '◉ live · no location, placed on the pilot campus');
+
+      // Twenty seconds: well inside the thirty-minute reap, slow enough to be
+      // free, and fast enough that someone walking at the ring sees the band
+      // tighten while they walk rather than after they stop.
+      _beaconClock?.cancel();
+      _beaconClock =
+          Timer.periodic(const Duration(seconds: 20), (_) => _pushBeacon());
     } catch (e) {
       if (mounted) _showToast('◌ offline · running on the local pool');
+    }
+  }
+
+  Future<void> _pushBeacon() async {
+    final api = SwarmApi.ready ? SwarmApi.instance : null;
+    if (api == null || !api.signedIn) return;
+
+    try {
+      // Re-ask the device only when the device was answering. The fallback is
+      // randomised on every call, so re-rolling it would teleport a person who
+      // has not moved an inch — and to a hunter that reads as their target
+      // sprinting eighty metres sideways every twenty seconds.
+      final at = _at?.real == true ? await whereAmI() : _at;
+      if (at == null || !mounted) return;
+
+      await api.beacon(at.lat, at.lon);
+      if (mounted && at.real) setState(() => _at = at);
+    } catch (_) {
+      // A missed push is survivable: the next one is twenty seconds away and
+      // the reaper does not come for half an hour.
     }
   }
 
@@ -95,12 +152,38 @@ class _EmergenceScreenState extends State<EmergenceScreen>
           final view = Size(constraints.maxWidth, constraints.maxHeight);
           final tf = MapTransform.cover(view, Campus.world);
 
+          // Tell the engine what is actually on screen, so a whisper it finds
+          // is a whisper you can see. Inset for the HUD above and the dock
+          // below, and by half a bubble at the sides — a band readout hanging
+          // off the edge of the window is the same as no bubble at all.
+          _engine.viewport = Rect.fromPoints(
+            tf.toWorld(const Offset(110, 250)),
+            tf.toWorld(Offset(view.width - 110, view.height - 130)),
+          );
+
           return Stack(
             children: [
+              // --- the real world, when there is a key for it ---
+              Positioned.fill(
+                child: Ground(
+                  lat: _at?.lat ?? Config.fallbackLat,
+                  lon: _at?.lon ?? Config.fallbackLon,
+                  zoom: _zoom,
+                  onZoom: (z) {
+                    // Cheap enough to hold in state every frame of a pinch;
+                    // the engine only reads it when a sweep actually fires.
+                    _zoom = z;
+                    _engine.zoom = z;
+                  },
+                ),
+              ),
+
               // --- the dark. tap it to walk. ---
               Positioned.fill(
                 child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                  // Translucent, not opaque: the sonar still takes the tap that
+                  // walks you, and the pinch still reaches the map underneath.
+                  behavior: HitTestBehavior.translucent,
                   onTapDown: (d) => _engine.walkTo(tf.toWorld(d.localPosition)),
                   child: CustomPaint(
                     painter: SonarPainter(
@@ -149,6 +232,7 @@ class _EmergenceScreenState extends State<EmergenceScreen>
                     countdown: _emergenceLeft,
                     onClass: () => showClassSheet(context, _engine),
                     onEmergence: () => showBloomSheet(context, _engine),
+                    onRooms: () => showRoomsSheet(context),
                     onDeep: () => showDeepSheet(context, _engine),
                     onInfo: () => showInfoSheet(context),
                     onStreak: () => showStatSheet(context, _engine, 'streak'),

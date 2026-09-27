@@ -31,6 +31,20 @@
 
   <title>swarm</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Google Maps for web. google_maps_flutter_web renders through the JS API,
+       so the map cannot exist unless this script has loaded first.
+
+       The placeholder is stamped with the real key AFTER the build, into
+       build/web/index.html, never into this file — so the key stays out of git
+       while the deployed bundle still has it. A browser key is public by
+       nature anyway; the thing that actually protects it is the HTTP referrer
+       restriction on the key itself, not secrecy.
+
+       With no key stamped, the script 404s harmlessly and Config.hasMaps is
+       false, so the app draws its own map instead. -->
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=__GOOGLE_MAPS_KEY__&loading=async"></script>
 </head>
 <body>
   <!--

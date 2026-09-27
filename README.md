@@ -11,27 +11,46 @@ The Flutter build is a direct port of it — same mechanics, same numbers, same 
 
 ## Run it
 
-Flutter is not installed on this machine yet. One time:
-
 ```bash
-brew install --cask flutter     # ~1 GB
-flutter doctor                  # follow whatever it tells you
-```
-
-Then, from this folder:
-
-```bash
-flutter create --project-name swarm --platforms=ios,android,macos .
 flutter pub get
 flutter run
 ```
 
-`--project-name swarm` is required because this folder has spaces in its name.
-It will not touch `lib/`, `pubspec.yaml` or anything already
-written — it only generates the `ios/`, `android/` and `macos/` shells.
+No backend needed. With no session the app runs on the offline pool in Dart,
+which is the point: if this is not fun offline, no backend will save it.
+Connection is an upgrade, never a gate.
 
-No backend needed for week 1. It runs entirely on fake data in Dart, which is
-the point: if this is not fun offline, no backend will save it.
+To show someone the thing itself with no door on it:
+
+```bash
+flutter run --dart-define=DEMO=true
+```
+
+There is no session in that mode and nothing pretends there is — every server
+call still refuses. Never ship a build with it on.
+
+### Keys
+
+Nothing secret belongs in `lib/`. Both of these are build-time only, and
+`.env.local` is ignored by git:
+
+```bash
+flutter run --dart-define=GOOGLE_MAPS_KEY=AIza...
+GOOGLE_MAPS_KEY=AIza... bash scripts/stamp-maps-key.sh build/web
+```
+
+Leave the Maps key out entirely and the app draws its own dark map, which
+costs nothing and still works offline.
+
+### Applying the database
+
+```bash
+SUPABASE_ACCESS_TOKEN=sbp_... bash scripts/db.sh -f supabase/006_hunts.sql
+```
+
+Migrations are numbered and go in order. The token is a personal access token
+from https://supabase.com/dashboard/account/tokens — a full-account
+credential, so it never gets committed and never appears in `lib/`.
 
 ---
 
@@ -44,7 +63,9 @@ the point: if this is not fun offline, no backend will save it.
 | `lib/models/campus.dart` | Campus geometry in **metres**, plus `MapTransform`. Swap for real OSM geometry later; nothing else changes. |
 | `lib/widgets/` | HUD, dock, whisper bubbles, the five sheets, the dormant screen. All dumb. |
 | `lib/theme.dart` | The only place colours and text styles exist. Syne / Newsreader / JetBrains Mono. |
-| `supabase/schema.sql` | Week 2. PostGIS bands, RLS, the reaper cron, rate limits. |
+| `supabase/schema.sql` | PostGIS bands, RLS, the reaper cron, rate limits. |
+| `supabase/006_hunts.sql` | The hunt loop, the freeze right and spores, in Postgres. Both ends of a hunt are people; neither learns who the other is. |
+| `lib/data/swarm_api.dart` | Every call the app is allowed to make. Note what is absent: no `getWhisperLocation`, no way to read a beacon. |
 | `.cursorrules` | Loaded automatically by Cursor. Keeps the architecture and the six safety rules intact when you vibe-code. |
 
 ## Playing it
@@ -69,8 +90,34 @@ They are in `.cursorrules` so the AI cannot quietly refactor them out.
 
 ## Roadmap
 
-- **Week 1** — this. Make it fun with fake data.
-- **Week 2** — Supabase: `.edu` magic link, `whispers` table, PostGIS bands, reaper cron.
-- **Week 3** — real hunts: live beacons, freeze notifications, spore drops.
+- **Week 1** — ✅ the offline engine. Fun with fake data, or nothing else matters.
+- **Week 2** — ✅ Supabase: campus-domain login, `whispers`, PostGIS bands,
+  rooms, the safety layer, reaper cron.
+- **Week 3** — ✅ real hunts: live beacons, freeze notifications, spore drops.
+  See `supabase/006_hunts.sql`.
 - **Week 4** — one dorm, one 24-hour emergence, 200 people. Posters that show
   only a countdown. Do not launch a campus; launch a building and let it leak.
+
+### Signing in
+
+Google, or a campus email and a password. There is no magic link and no
+emailed code: a free Supabase project cannot reliably put either in an inbox,
+so the sturdiest door is the one that never needs mail. Recovery mail is the
+only mail left, and it is not a login.
+
+The campus-domain rule is applied twice — once at the field, and once to the
+session itself — because Google will vouch for any address alive.
+
+### How a hunt actually works
+
+The ring follows a live beacon, not the spot a whisper was dropped at, so you
+are chasing someone who is walking. They are told the moment you start, and
+they are told again each time the band changes.
+
+**Standing still dissolves your signal.** Not an ability, not a class, not a
+purchase — twelve seconds of not walking and the hunt dies, and while you are
+frozen you drop out of everyone's sweep as well. There is deliberately nothing
+anywhere in the schema that counters this.
+
+Inside ten metres the ring bursts, `hunt_ping` returns `mirage`, and the row is
+deleted. There is no second reading. Look up.

@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# Everything the project needs before two people can sign up and whisper.
+#
+# The pieces were already here as separate scripts; what was missing was the
+# order and the one setting nobody thinks of until signup silently fails on a
+# free project: email confirmation.
+#
+#   SUPABASE_ACCESS_TOKEN=sbp_... bash scripts/go-live.sh
+#
+# Optional, and only if you have made the client in Google Cloud:
+#   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... bash scripts/go-live.sh
+#
+# The token is a personal access token from
+# https://supabase.com/dashboard/account/tokens — a full-account credential.
+# Never commit it, never put it in lib/, never hand it to the client.
+#
+# Safe to run twice. Every migration is written with `if not exists` and
+# `create or replace`, and the auth settings are idempotent PATCHes.
+
+set -euo pipefail
+
+# Never trace: every credential this script touches would land in the log.
+set +x
+
+cd "$(dirname "$0")/.."
+
+# Prefer a secret that is already on disk over one typed at a prompt.
+#
+# A token pasted into a chat, a terminal, or a command line is a token that
+# now lives in a scrollback buffer, a shell history file, and whatever else
+# was reading either. `.env.local` is gitignored, is already where every other
+# credential for this project lives, and nothing below ever prints what it
+# read out of it.
+if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -f .env.local ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env.local
+  set +a
+fi
+
+REF="${SUPABASE_PROJECT_REF:-bocxxdktggogogsrhhss}"
+APP="${APP_ORIGIN:-https://the-swarm-chi.vercel.app}"
+
+if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+  cat >&2 <<'HOWTO'
+No SUPABASE_ACCESS_TOKEN found.
+
+Get one at https://supabase.com/dashboard/account/tokens, then add a line to
+.env.local (which is gitignored, and is where the rest of this project's
+credentials already live):
+
+    SUPABASE_ACCESS_TOKEN=sbp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+Then run this script again with no arguments. The value is read from the file
+and is never printed, never passed on a command line, and never committed.
+HOWTO
+  exit 1
+fi
+
+api() {
+  curl -sS -X "$1" "https://api.supabase.com/v1/projects/$REF$2" \
+    -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    ${3:+-d "$3"}
+}
+
+echo "→ project $REF"
+echo
+
+# ---------------------------------------------------------------- 1. schema
+# In order. Each one assumes the last has run: 002 turns every user column to
+# text, 004 closes leaks 003 opened, 006 replaces the sweep 005 defined.
+echo "── applying migrations ──────────────────────────────"
+
+# schema.sql is the ONLY file here that cannot be replayed.
+#
+# It defines every user column as uuid and compares them to auth.uid(). 002
+# then rewrites all of them to text and swaps auth.uid() for swarm_uid(), so
+# running schema.sql against a database that is already past 002 fails with
+# `operator does not exist: text = uuid` — it is not a broken migration, it is
+# a migration whose assumptions were deliberately replaced.
+#
+# swarm_uid() existing is the marker for "past 002". Everything from 002 on is
+# written to be re-runnable, so on an established database we simply start
+# there.
+MIGRATIONS="supabase/schema.sql supabase/002_clerk_identity.sql"
+if bash scripts/db.sh "select 1 from pg_proc where proname = 'swarm_uid' limit 1" \
+     2>/dev/null | grep -q '"?column?"'; then
+  echo "   schema.sql, 002              skipped (already past 002)"
+  MIGRATIONS=""
+fi
+
+for f in $MIGRATIONS \
+         supabase/003_safety.sql \
+         supabase/004_close_id_leaks.sql \
+         supabase/005_rooms.sql \
+         supabase/006_hunts.sql; do
+  printf '   %-32s ' "$(basename "$f")"
+  out="$(bash scripts/db.sh -f "$f" 2>&1)" || { echo "FAILED"; echo "$out"; exit 1; }
+  if printf '%s' "$out" | grep -q '"message"'; then
+    echo "FAILED"; printf '%s\n' "$out"; exit 1
+  fi
+  echo "ok"
+done
+echo
+
+# ------------------------------------------------------------------ 2. mail
+# The setting that decides whether your friend can get in tonight.
+#
+# With confirmation ON, signup creates a user with NO session and waits for an
+# email — and a free project's default mailer only reaches your own team, twice
+# an hour. Everyone else gets a spinner and then nothing, which reads as "the
+# app is broken" rather than "check your inbox".
+#
+# OFF means signup returns a session immediately. The gate is still the campus
+# domain (SwarmApi.isCampusEmail), which is the membership test that actually
+# matters here — a confirmed mailbox was never the thing being checked.
+echo "── auth: no mail in the signup path ─────────────────"
+api PATCH /config/auth '{"mailer_autoconfirm": true}' \
+  | python3 -c 'import json,sys
+d = json.load(sys.stdin)
+if "message" in d: sys.exit("   ✗ " + str(d["message"]))
+print("   ✓ email confirmation off — signup returns a session immediately")'
+echo
+
+# ------------------------------------------------------------------ 3. urls
+echo "── auth: redirect URLs ──────────────────────────────"
+bash scripts/set-auth-urls.sh
+echo
+
+# --------------------------------------------------------------- 4. google
+echo "── auth: oauth providers ────────────────────────────"
+if [ -n "${GOOGLE_CLIENT_ID:-}${GITHUB_CLIENT_ID:-}${DISCORD_CLIENT_ID:-}${APPLE_CLIENT_ID:-}" ]; then
+  bash scripts/set-oauth.sh
+else
+  echo "   skipped — no provider credentials in the environment."
+  echo
+  echo "   Email + password works without any of this, and is the fastest"
+  echo "   way to get two people in tonight."
+  echo
+  echo "   The OAuth buttons will say 'not switched on for this project'"
+  echo "   until a client exists on the provider's side. Nothing in this"
+  echo "   repo can create one — they are minted against your account."
+  echo "   See the header of scripts/set-oauth.sh. GitHub is the fastest:"
+  echo "   github.com/settings/developers, about two minutes."
+fi
+echo
+
+# ---------------------------------------------------------------- 5. verify
+# Ask the database to prove the parts that matter are actually there, rather
+# than trusting that six HTTP 200s meant what they looked like.
+echo "── verifying ────────────────────────────────────────"
+bash scripts/db.sh "
+select
+  (select count(*) from pg_proc  where proname in
+     ('hunt_start','hunt_ping','hunt_drop','hunted_state','freeze_signal',
+      'spore_drop','spores_near','sweep','post_whisper','beacon_set')) as rpcs,
+  (select count(*) from pg_tables where schemaname='public'
+     and tablename in ('whispers','beacons','hunts','hunt_alerts','spores')) as tables,
+  (select count(*) from pg_publication_tables
+     where pubname='supabase_realtime' and tablename='hunt_alerts') as realtime,
+  (select count(*) from pg_policies where schemaname='public'
+     and tablename='hunts') as hunt_policies
+" | python3 -c '
+import json, sys
+
+d = json.load(sys.stdin)
+if isinstance(d, dict) and "message" in d:
+    sys.exit("   x " + str(d["message"]))
+r = d[0] if isinstance(d, list) else d
+
+ok = True
+
+def check(label, got, want, exact=False, why=""):
+    global ok
+    good = (got == want) if exact else (got >= want)
+    if not good:
+        ok = False
+    mark = "✓" if good else "x"
+    tail = "" if good else "  (expected %s) %s" % (want, why)
+    print("   %s %s: %s%s" % (mark, label, got, tail))
+
+check("hunt + core RPCs", r["rpcs"], 10)
+check("tables", r["tables"], 5)
+check("hunt_alerts in realtime publication", r["realtime"], 1,
+      why="- the socket cannot deliver without this")
+
+# Zero is CORRECT here, and is the reason for the check: `hunts` holds both
+# the hunter and the quarry, so there is no column subset a client may read.
+check("hunts RLS policies (must be 0)", r["hunt_policies"], 0, exact=True,
+      why="- both ids live in that table")
+
+sys.exit(0 if ok else "   x verification failed")'
+
+echo
+echo "────────────────────────────────────────────────────────"
+echo "Ready. Sign up at $APP with any email and a password."
+echo
+echo "Two phones, two accounts, stand apart, PING. The band is"
+echo "the distance; inside ten metres it says MIRAGE and stops."

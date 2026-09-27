@@ -2,6 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
+import '../data/swarm_api.dart';
 import '../engine/swarm_engine.dart';
 import '../models/swarm_class.dart';
 import '../theme.dart';
@@ -14,6 +16,7 @@ class Hud extends StatelessWidget {
     required this.onClass,
     required this.onEmergence,
     required this.onDeep,
+    required this.onRooms,
     required this.onInfo,
     required this.onStreak,
     required this.onPulse,
@@ -27,6 +30,7 @@ class Hud extends StatelessWidget {
   final VoidCallback onClass;
   final VoidCallback onEmergence;
   final VoidCallback onDeep;
+  final VoidCallback onRooms;
   final VoidCallback onInfo;
   final VoidCallback onStreak;
   final VoidCallback onPulse;
@@ -65,6 +69,8 @@ class Hud extends StatelessWidget {
                 ]),
               ),
               const Spacer(),
+              _IconBtn(
+                  icon: Icons.forum_outlined, onTap: onRooms, tip: 'Rooms'),
               _IconBtn(icon: Icons.waves_rounded, onTap: onDeep, tip: 'Deep Ocean'),
               const SizedBox(width: 7),
               _IconBtn(icon: Icons.wb_twilight_rounded, onTap: onDawn, tip: 'End the night'),
@@ -82,7 +88,19 @@ class Hud extends StatelessWidget {
               onTap: onStreak,
             ),
             const SizedBox(width: 6),
-            _Stat(value: '${engine.pulse}', label: 'AWAKE', live: true, onTap: onPulse),
+            // The real number when there is one. `pulse` is invented — it
+            // drifts between 330 and 486 whatever the campus is doing — and an
+            // invented crowd is worse than an honest empty room, because it is
+            // the number a person checks to decide whether to bother.
+            _Stat(
+              value: engine.live ? '${engine.souls.length}' : '${engine.pulse}',
+              label: engine.live ? 'NEARBY' : 'AWAKE',
+              live: true,
+              tint: engine.live && engine.souls.isNotEmpty
+                  ? Swarm.plankton
+                  : null,
+              onTap: onPulse,
+            ),
             const SizedBox(width: 6),
             _Stat(value: '${engine.missed}', label: 'MISSED', onTap: onMissed),
             const SizedBox(width: 6),
@@ -114,6 +132,146 @@ class Hud extends StatelessWidget {
               ),
             ),
           ]),
+          const SizedBox(height: 8),
+          _Lens(engine: engine),
+          // Rule three, on screen rather than in a toast that fades. Someone
+          // being hunted is entitled to know it for as long as it is true, and
+          // to be told the one thing that ends it.
+          if (engine.prey.hunted) ...[
+            const SizedBox(height: 8),
+            _Hunted(prey: engine.prey),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// What the current zoom is showing, in the only two numbers that matter:
+/// how far the sweep reaches, and how loud a whisper has to be to carry that
+/// far. Without this, pulling the map back looks like whispers disappearing
+/// for no reason — which is a bug report, not a mechanic.
+class _Lens extends StatelessWidget {
+  const _Lens({required this.engine});
+
+  final SwarmEngine engine;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = engine.lensNow;
+    final wide = l.minBoosts > 0;
+    final tint = wide ? Swarm.bard : Swarm.plankton;
+
+    // With a real map underneath, the camera is the control and this is a
+    // readout. With no key there is no camera to pinch, so the readout has to
+    // BE the control or the ladder is unreachable.
+    final tappable = !Config.hasMaps;
+
+    final body = _Glass(
+      radius: 9,
+      border: tint.withValues(alpha: .28),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      child: Row(
+        children: [
+          Icon(
+            engine.reframing
+                ? Icons.autorenew_rounded
+                : wide
+                    ? Icons.travel_explore_rounded
+                    : Icons.my_location_rounded,
+            size: 12,
+            color: tint,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              engine.reframing
+                  ? 'redrawing at this scale…'
+                  : wide
+                      // Pulling back is a trade, and naming it is what makes
+                      // the gesture worth making.
+                      ? 'only ${l.minBoosts}+ boosted carry this far'
+                      : 'every whisper within earshot',
+              style: Swarm.voice(size: 11.8, color: Swarm.fog),
+            ),
+          ),
+          Text(
+            '${l.radius.round()}m',
+            style: Swarm.data(size: 9.5, color: tint, tracking: 1.2),
+          ),
+          if (tappable) ...[
+            const SizedBox(width: 7),
+            const Icon(Icons.unfold_more_rounded, size: 12, color: Swarm.murk),
+          ],
+        ],
+      ),
+    );
+
+    if (!tappable) return body;
+    return GestureDetector(onTap: engine.stepLens, child: body);
+  }
+}
+
+/// What the hunted person is shown. Deliberately the same five band words a
+/// hunter sees, so neither side has better information than the other — and
+/// never a direction, because there is no direction to give.
+class _Hunted extends StatelessWidget {
+  const _Hunted({required this.prey});
+
+  final HuntedState prey;
+
+  Color get _tint => switch (prey.nearest) {
+        'mirage' || 'critical' => Swarm.critical,
+        'hot' => Swarm.hot,
+        'warm' => Swarm.warm,
+        _ => Swarm.cold,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final dissolving = prey.frozen;
+    final tint = dissolving ? Swarm.mage : _tint;
+
+    return _Glass(
+      radius: 10,
+      border: tint.withValues(alpha: .5),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            dissolving ? Icons.ac_unit_rounded : Icons.my_location_rounded,
+            size: 14,
+            color: tint,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dissolving
+                      ? 'YOUR SIGNAL IS DISSOLVING'
+                      : prey.hunters == 1
+                          ? 'SOMEONE IS TRACKING YOU'
+                          : '${prey.hunters} ARE TRACKING YOU',
+                  style: Swarm.data(
+                      size: 9.5, color: tint, tracking: 1.8,
+                      weight: FontWeight.w700),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  dissolving
+                      ? 'keep still and they lose you'
+                      : 'stand still to disappear',
+                  style: Swarm.voice(size: 12, color: Swarm.fog),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            prey.nearest.toUpperCase(),
+            style: Swarm.data(size: 9.5, color: tint, tracking: 1.4),
+          ),
         ],
       ),
     );

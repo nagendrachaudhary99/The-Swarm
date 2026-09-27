@@ -12,6 +12,11 @@ drop policy if exists "my blocks" on blocks;
 -- >>>
 drop policy if exists "see my own reports" on reports;
 -- >>>
+-- Dropped first so this file can be replayed. Every other policy in this
+-- schema is written that way; this one was the exception, and it turned a
+-- re-run of the migration set into a hard failure on an established database.
+drop policy if exists "block, do not read" on blocks;
+-- >>>
 -- You may still create both. You may no longer read either.
 create policy "block, do not read" on blocks for insert
   with check (blocker = swarm_uid());

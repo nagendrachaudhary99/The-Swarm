@@ -2,10 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:swarm/data/swarm_api.dart';
 import 'package:swarm/engine/swarm_engine.dart';
 import 'package:swarm/models/swarm_class.dart';
 import 'package:swarm/models/whisper.dart';
 import 'package:swarm/painters/sonar_painter.dart';
+import 'package:swarm/widgets/ground.dart';
+import 'package:swarm/models/bloom.dart';
 import 'package:swarm/models/campus.dart';
 
 void main() {
@@ -85,6 +88,239 @@ void main() {
       e.useAbility();
       expect(e.energy, before, reason: 'a no-op ability must not charge');
       expect(e.wedgeOn, isFalse);
+    });
+  });
+
+  // The hunt is the one loop with a second person in it, so these are tests of
+  // the promises made to that person rather than of the mechanics.
+  group('the hunt', () {
+    test('a burst latches, so asking again never narrows further', () {
+      final e = SwarmEngine();
+      final w = e.whispers.first
+        ..revealed = true
+        ..pos = e.you + const Offset(12, 0)
+        ..state = TargetState.frozen;
+
+      e.track(w);
+      expect(e.mirageLatched, isFalse);
+
+      // walk the last two metres
+      w.pos = e.you + const Offset(8, 0);
+      e.update(1 / 60);
+
+      expect(e.mirageLatched, isTrue);
+      expect(e.target, isNull);
+      expect(e.hunt.band, 'lost', reason: 'the floor returns nothing at all');
+    });
+
+    test('dropping a hunt clears the latch so a new one can start', () {
+      final e = SwarmEngine();
+      final a = e.whispers.first..revealed = true;
+      e.track(a);
+      e.track(a); // tracking the same one again drops it
+      expect(e.target, isNull);
+      expect(e.mirageLatched, isFalse);
+    });
+
+    test('nobody hunting you means nothing to hide from', () {
+      // The regression this exists to prevent: freezing on stillness alone.
+      // sweep() drops whispers whose author is frozen, and standing still is
+      // what a person does almost all the time — so freezing by default made
+      // two people in one room invisible to each other within two seconds of
+      // opening the app. Rule three is an escape from being TRACKED.
+      final e = SwarmEngine();
+      expect(e.prey.hunted, isFalse);
+      e.destination = null;
+      for (var i = 0; i < 60 * 10; i++) {
+        e.update(1 / 60);
+      }
+      expect(e.prey.frozen, isFalse,
+          reason: 'ten seconds of stillness with no hunter must not hide you');
+    });
+
+    test('standing still costs nothing — the freeze right is never priced', () {
+      final e = SwarmEngine();
+      final before = e.energy;
+      e.destination = null;
+      for (var i = 0; i < 60 * 5; i++) {
+        e.update(1 / 60);
+      }
+      expect(e.energy, greaterThanOrEqualTo(before),
+          reason: 'energy regenerates while still; it must never be spent');
+      expect(e.prey.frozen, isFalse, reason: 'offline there is nobody to tell');
+    });
+
+    test('a tick the server never answered is not a hunt', () {
+      expect(HuntTick.none.over, isTrue);
+      expect(HuntTick.none.burst, isFalse);
+      expect(HuntedState.calm.hunted, isFalse);
+    });
+
+    test('every way a hunt ends reads as over, and only one as a burst', () {
+      HuntTick t(String s) => HuntTick(band: 'hot', state: s, seconds: 0);
+      expect(t('burst').over, isTrue);
+      expect(t('burst').burst, isTrue);
+      expect(t('dissolved').over, isTrue);
+      expect(t('gone').over, isTrue);
+      expect(t('none').over, isTrue);
+
+      expect(t('open').over, isFalse);
+      // A frozen hunt is still running: they can start moving again.
+      expect(t('frozen').over, isFalse);
+      expect(t('frozen').frozen, isTrue);
+    });
+
+    test('the wire format carries a band and never a position', () {
+      final tick = HuntTick.fromRow(
+          {'band': 'critical', 'state': 'open', 'seconds': 42});
+      expect(tick.band, 'critical');
+      expect(tick.seconds, 42);
+
+      final hunted = HuntedState.fromRow(
+          {'hunters': 2, 'nearest': 'hot', 'frozen': true});
+      expect(hunted.hunted, isTrue);
+      expect(hunted.hunters, 2);
+      expect(hunted.nearest, 'hot');
+
+      // There is no field for who, in either direction, because there is no
+      // column for it in the tables these come from.
+      expect(tick.toString(), isNot(contains('user')));
+    });
+
+    test('a missing row degrades to calm rather than to an exception', () {
+      expect(HuntTick.fromRow(const {}).state, 'none');
+      expect(HuntTick.fromRow(const {}).band, 'lost');
+      expect(HuntedState.fromRow(const {}).hunted, isFalse);
+    });
+  });
+
+  group('the lens', () {
+    // `lens` is the whole map idea: zoom in and everything nearby is legible,
+    // pull back and only the loud carry. These guard the two ways that ladder
+    // breaks — opening on a rung that already filters (so a new whisper is
+    // born invisible and dies in 22 seconds), and the rungs drifting so that
+    // pulling back asks for less rather than more.
+    test('a fresh whisper is visible at the zoom the app opens at', () {
+      // Deliberately read from the engine rather than hardcoding a number:
+      // the invariant is about whatever zoom the app opens on, not about the
+      // value it happens to hold today.
+      final opening = SwarmEngine().zoom;
+      expect(SwarmApi.lens(opening).minBoosts, 0,
+          reason: 'a whisper is posted with 0 boosts. If the opening rung '
+              'demands more, a new whisper is invisible to everyone — '
+              'including whoever would have boosted it.');
+    });
+
+    test('the map and the engine open on the same rung', () {
+      // Three files hold this number. If they drift, the HUD describes one
+      // lens while the sweep uses another.
+      expect(const Ground(lat: 0, lon: 0).zoom, SwarmEngine().zoom);
+    });
+
+    test('pulling back asks for louder whispers, never quieter', () {
+      var last = -1;
+      for (final z in [19.0, 18.0, 16.5, 15.0, 13.5, 11.0]) {
+        final m = SwarmApi.lens(z).minBoosts;
+        expect(m, greaterThanOrEqualTo(last),
+            reason: 'zoom $z must not demand less than the tier above it');
+        last = m;
+      }
+    });
+
+    test('reach widens as the floor rises, so a tier is never strictly worse',
+        () {
+      var last = 0.0;
+      for (final z in [19.0, 18.0, 16.5, 15.0, 13.5, 11.0]) {
+        final r = SwarmApi.lens(z).radius;
+        expect(r, greaterThanOrEqualTo(last));
+        last = r;
+      }
+    });
+
+    test('the HUD readout cannot describe a lens the sweep is not using', () {
+      final e = SwarmEngine()..zoom = 14;
+      expect(e.lensNow, SwarmApi.lens(14));
+      e.zoom = 19;
+      expect(e.lensNow, SwarmApi.lens(19));
+    });
+
+    test('the ladder is reachable with no Maps key', () {
+      // Without a key `Ground` renders nothing, so there is no camera and no
+      // onCameraMove — zoom would otherwise be frozen at its opening value
+      // forever, which is every local build and any deploy missing the key.
+      final e = SwarmEngine();
+      final rungs = <double>{e.zoom};
+      for (var i = 0; i < SwarmEngine.lensRungs.length; i++) {
+        e.stepLens();
+        rungs.add(e.zoom);
+      }
+      expect(rungs.length, SwarmEngine.lensRungs.length,
+          reason: 'every rung must be reachable by tapping');
+      expect(e.zoom, SwarmEngine().zoom, reason: 'and it must cycle home');
+    });
+
+    test('every rung the tap can reach is a real tier', () {
+      // A rung that lands mid-tier would show a lens the ladder never meant.
+      for (final z in SwarmEngine.lensRungs) {
+        expect(SwarmApi.lens(z), SwarmApi.lens(z + 0.001),
+            reason: 'zoom $z must sit exactly on a tier boundary');
+      }
+    });
+
+    test('a soul cannot represent a person, only a distance', () {
+      // The wire format has no id column, so the class has no field for one.
+      // Two readings a minute apart cannot be correlated, which is the whole
+      // reason presence is safe to show at all.
+      final s = Soul(const Offset(10, 10), 'hot', .5);
+      expect(s.band, 'hot');
+      expect(s.toString(), isNot(contains('id')));
+      expect(s.toString(), isNot(contains('user')));
+    });
+
+    test('presence starts empty and is never invented', () {
+      // `pulse` is a made-up crowd that drifts between 330 and 486. It must
+      // never stand in for the real count, because that is the number someone
+      // checks to decide whether the app is worth opening.
+      final e = SwarmEngine();
+      expect(e.souls, isEmpty);
+      expect(e.live, isFalse, reason: 'offline there is nobody to count');
+    });
+
+    test('the screen can tell the engine what is actually visible', () {
+      // A desktop window shows a slice about 137 m tall while a sweep reaches
+      // 140, so the engine has to know the slice to pick a visible angle. The
+      // angle is invented either way — the server sends a band and never a
+      // bearing — so choosing a visible one costs nothing and is not a
+      // compromise of anything.
+      final e = SwarmEngine();
+      expect(e.viewport, isNull, reason: 'unset until a screen measures one');
+
+      const slice = Rect.fromLTWH(40, 150, 160, 120);
+      e.viewport = slice;
+      expect(e.viewport, slice);
+      expect(e.viewport!.contains(e.viewport!.center), isTrue);
+    });
+
+    test('the bloom you picked is the bloom the server is told about', () {
+      // Hardcoding 'nightly' made the local copy outlive the server's, so the
+      // author was the one person who could not see the whisper expire.
+      final e = SwarmEngine();
+      expect(e.bloom.id, 'nightly');
+      final exam = kBlooms.firstWhere((b) => b.id == 'exam');
+      e.setBloom(exam);
+      expect(e.bloom.id, 'exam');
+      expect(e.bloom.lifeMultiplier, greaterThan(1),
+          reason: 'and the server has a matching branch for that id');
+    });
+
+    test('a boost is felt immediately, not a round trip later', () {
+      final e = SwarmEngine();
+      final w = e.whispers.first..revealed = true;
+      expect(w.boosts, 0);
+      e.boost(w);
+      expect(w.boosts, 1, reason: 'the number the person just pressed moves');
+      e.boost(w);
+      expect(w.boosts, 1, reason: 'once per whisper, ever');
     });
   });
 

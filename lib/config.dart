@@ -27,6 +27,15 @@ class Config {
     defaultValue: true,
   );
 
+  /// Open the app with no door on it, for showing someone the thing itself.
+  ///
+  /// There is no session in this mode and nothing pretends there is: every
+  /// server call still refuses, so what you get is the offline pool the app
+  /// was designed to be playable on. Off unless a build asks for it —
+  ///   flutter build web --dart-define=DEMO=true
+  /// and never on a build anyone is meant to sign into.
+  static const demo = bool.fromEnvironment('DEMO');
+
   /// Google Maps. Supply at build time — never commit a key:
   ///   flutter run --dart-define=GOOGLE_MAPS_KEY=AIza...
   /// Leave it empty and the app draws its own dark map instead, which costs

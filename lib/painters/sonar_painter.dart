@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../engine/swarm_engine.dart';
 import '../models/bloom.dart';
 import '../models/campus.dart';
@@ -99,9 +100,16 @@ class SonarPainter extends CustomPainter {
     _ground(canvas, size);
     _grid(canvas, size);
     _contours(canvas);
-    _paths(canvas);
-    _buildings(canvas);
+    // The invented campus exists to give the dark something to be dark ABOUT.
+    // When a real map is underneath there is already a real campus down there,
+    // and drawing PHYS SCI on top of somebody's actual street is worse than
+    // drawing nothing: it is a second, wrong city.
+    if (!Config.hasMaps) {
+      _paths(canvas);
+      _buildings(canvas);
+    }
     _motesLayer(canvas, front: false);
+    _souls(canvas);
     _spores(canvas);
     _unrevealed(canvas);
     _radarArm(canvas, size);
@@ -127,6 +135,30 @@ class SonarPainter extends CustomPainter {
   // The dark is centred on you — walking actually changes what the map feels like.
   void _ground(Canvas canvas, Size size) {
     final c = tf.toScreen(engine.you);
+
+    // This fill is OPAQUE — b.ground is 0xFF0B1724 and friends — which is
+    // correct when it is the only ground there is, and completely wrong when a
+    // Google map is sitting underneath it. It was painting over the real map
+    // on every frame, which looked exactly like the map failing to load.
+    //
+    // With a map present the same gradient is drawn at a fraction of its
+    // alpha: still centred on you, still darkest at the edges, so the sonar
+    // reads and the dark still closes in as you walk — but the city shows
+    // through it.
+    if (Config.hasMaps) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            c,
+            size.height * .9,
+            [for (final g in b.ground) g.withValues(alpha: .34)],
+            const [0.0, 0.34, 0.7, 1.0],
+          ),
+      );
+      return;
+    }
+
     canvas.drawRect(
       Offset.zero & size,
       Paint()
@@ -536,6 +568,41 @@ class SonarPainter extends CustomPainter {
             Swarm.rogue.withValues(alpha: 0),
           ]),
       );
+    }
+  }
+
+  /// Other people, drawn as the little they are allowed to be.
+  ///
+  /// A soft pulse at a true band distance and an invented angle. Deliberately
+  /// not a marker, a pin, or anything with an edge you could aim at: this says
+  /// "somebody is about this far away" and must not read as "somebody is
+  /// THERE". The whole point is to answer 'am I alone' on a quiet night, which
+  /// an empty screen answers wrongly.
+  void _souls(Canvas canvas) {
+    for (final s in engine.souls) {
+      final p = tf.toScreen(s.pos);
+      final beat = reduceMotion
+          ? .55
+          : .42 + .28 * (sin(engine.t * 1.5 + s.phase * pi * 2) * .5 + .5);
+
+      final tint = switch (s.band) {
+        'mirage' || 'critical' => Swarm.critical,
+        'hot' => Swarm.hot,
+        'warm' => Swarm.warm,
+        _ => Swarm.cold,
+      };
+
+      // A haze rather than a point — an edge is something you can aim at.
+      canvas.drawCircle(
+        p,
+        13,
+        Paint()
+          ..shader = ui.Gradient.radial(p, 13, [
+            tint.withValues(alpha: .20 * beat),
+            tint.withValues(alpha: 0),
+          ]),
+      );
+      canvas.drawCircle(p, 2.1, Paint()..color = tint.withValues(alpha: .62 * beat));
     }
   }
 

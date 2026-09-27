@@ -23,7 +23,15 @@ class Whisper {
   Offset drift;
 
   bool revealed = false;
+
+  /// Whether YOU boosted it — once, ever.
   bool boosted = false;
+
+  /// How many people boosted it, which is the only measure of virality the
+  /// app has. It decides what survives when the map is pulled back: zooming
+  /// out raises the floor, so a quiet whisper drops out and a loud one is
+  /// still legible from across the campus. See `SwarmApi.lens`.
+  int boosts = 0;
   double age = 0;
   double aliveFor = 0;
   double life;
@@ -38,6 +46,11 @@ class Whisper {
   /// the offline pool. Null means it is simulated.
   String? remoteId;
 
+  /// Yours, written, and refused by the server — so it exists on this phone
+  /// and nowhere else. Worth drawing differently: a whisper nobody can hear
+  /// that looks identical to one everybody can is the cruellest possible bug.
+  bool stranded = false;
+
   /// Where its bubble ended up on screen, so the painter can draw a hairline
   /// back to the exact spot the whisper came from. Set by the screen.
   Offset? anchor;
@@ -47,6 +60,23 @@ class Whisper {
 
   /// Last four seconds fade out.
   double get opacity => remaining < 4 ? (remaining / 4).clamp(0.0, 1.0) : 1.0;
+}
+
+/// Somebody else, out there, at a distance the server was willing to name.
+///
+/// Carries no id because the wire format has none — this class *cannot*
+/// represent a person, only the fact that one is within earshot. [pos] is
+/// drawn at the true band distance and an invented angle, exactly as a whisper
+/// is, because there has never been a bearing in any payload.
+class Soul {
+  Soul(this.pos, this.band, this.phase);
+
+  Offset pos;
+  final String band;
+
+  /// Keeps a crowd from pulsing in lockstep, which reads as a machine rather
+  /// than as people.
+  final double phase;
 }
 
 class Sweep {

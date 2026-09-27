@@ -1,13 +1,14 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show OAuthProvider;
 
 import '../data/swarm_api.dart';
 import '../theme.dart';
 
-/// The front door. It asks for one thing — a campus address — because the
-/// domain is the entire membership test. Nobody uploads an ID card, nobody
-/// sends a photo, and we never learn a name.
+/// The front door. Campus email remains the membership test. Email/password
+/// credentials are handled by Supabase Auth; the app never stores the password.
 class GateScreen extends StatefulWidget {
   const GateScreen({super.key, required this.onIn});
 
@@ -17,85 +18,274 @@ class GateScreen extends StatefulWidget {
   State<GateScreen> createState() => _GateScreenState();
 }
 
-enum _Step { email, code }
+enum _AuthMode { signIn, signUp }
 
-class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateMixin {
+/// The doors this screen is willing to show.
+///
+/// Showing one is not the same as it working. Each still has to be switched on
+/// in Supabase → Authentication → Providers with a client id and secret issued
+/// by that provider, and no code in this repo can conjure those — they are
+/// minted against someone's account, by that someone.
+///
+/// A provider listed here but not enabled upstream fails with a message that
+/// says so, which is deliberately better than hiding the button: a door that
+/// is missing reads as a broken app, and a door that says "not unlocked yet"
+/// reads as a setup step.
+enum _Provider {
+  google(OAuthProvider.google, 'Google', Icons.g_mobiledata_rounded),
+  github(OAuthProvider.github, 'GitHub', Icons.code_rounded),
+  discord(OAuthProvider.discord, 'Discord', Icons.forum_rounded),
+  apple(OAuthProvider.apple, 'Apple', Icons.apple_rounded);
+
+  const _Provider(this.provider, this.label, this.icon);
+
+  final OAuthProvider provider;
+  final String label;
+  final IconData icon;
+
+  /// Google keeps the wide button and its real mark; the rest share a row.
+  static const rest = [_Provider.github, _Provider.discord, _Provider.apple];
+}
+
+class _GateScreenState extends State<GateScreen>
+    with SingleTickerProviderStateMixin {
   final _email = TextEditingController();
-  final _code = TextEditingController();
+  final _password = TextEditingController();
   late final AnimationController _pulse;
 
-  _Step _step = _Step.email;
+  _AuthMode _mode = _AuthMode.signIn;
   bool _busy = false;
+  bool _obscurePassword = true;
   String? _error;
+  String? _notice;
+  StreamSubscription<String>? _refusals;
+
+  bool get _creating => _mode == _AuthMode.signUp;
 
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 6))
-      ..repeat();
+    _pulse =
+        AnimationController(vsync: this, duration: const Duration(seconds: 6))
+          ..repeat();
+
+    // OAuth addresses are known only after the provider returns. The API
+    // applies the same campus-domain rule to that authenticated session and
+    // reports a refusal here so the gate can explain what happened.
+    _refusals = SwarmApi.instance.refusals.listen((email) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _notice = null;
+        _error = '$email is not a campus address. The Swarm is one college '
+            'only — sign in with the account that college gave you.';
+      });
+    });
   }
 
   @override
   void dispose() {
+    _refusals?.cancel();
     _pulse.dispose();
     _email.dispose();
-    _code.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  Future<void> _send() async {
+  Future<void> _submit() async {
     setState(() {
       _busy = true;
       _error = null;
+      _notice = null;
     });
+
     try {
-      await SwarmApi.instance.sendCode(_email.text);
-      if (mounted) setState(() => _step = _Step.code);
+      if (_creating) {
+        final response = await SwarmApi.instance.signUpWithPassword(
+          email: _email.text,
+          password: _password.text,
+        );
+
+        if (!mounted) return;
+
+        // When Supabase email confirmation is disabled, signup returns a
+        // session immediately. When confirmation is enabled, the account is
+        // created but there is no session until the address is confirmed.
+        if (response.session != null) {
+          widget.onIn();
+        } else {
+          setState(() {
+            _mode = _AuthMode.signIn;
+            _password.clear();
+            _notice =
+                'Account created. Check your college inbox to confirm your '
+                'address, then come back and sign in with your password.';
+          });
+        }
+      } else {
+        await SwarmApi.instance.signInWithPassword(
+          email: _email.text,
+          password: _password.text,
+        );
+
+        if (mounted) widget.onIn();
+      }
     } on CampusEmailRejected {
       if (mounted) {
-        setState(() => _error =
-            'The Swarm is one campus only. Use your college address — the '
-            'domain is the whole door.');
+        setState(() {
+          _error =
+              'The Swarm is one campus only. Use your college address — the '
+              'domain is the whole door.';
+        });
       }
     } catch (e) {
-      final msg = e.toString();
+      final msg = e.toString().toLowerCase();
+
       if (mounted) {
-        setState(() => _error = msg.contains('rate_limit') || msg.contains('429')
-            ? 'Too many mails from this campus in the last hour. Wait a bit, or '
-                'tap “I already have a code” below if one was sent earlier.'
-            : msg.contains('invalid')
-                ? 'That mailbox could not be reached. Check the spelling — or if '
-                    'you were given a code directly, use the link below.'
-                : 'Could not send that.\n\n$e');
+        setState(() {
+          if (msg.contains('invalid login credentials') ||
+              msg.contains('invalid_credentials')) {
+            // Supabase cannot distinguish "no such address" from "wrong
+            // password", and deliberately will not — that difference is an
+            // account-existence oracle. So the message names the other likely
+            // cause, because a mistyped address fails identically and looks
+            // for all the world like a forgotten password.
+            _error = 'That email and password did not match.\n\n'
+                'Check the address for a typo — a misspelled one fails '
+                'exactly like a wrong password.';
+          } else if (msg.contains('email not confirmed')) {
+            _error = 'That account was never confirmed, and this project '
+                'cannot send the mail to confirm it. Create a new account '
+                'instead — signing up needs no email.';
+          } else if (msg.contains('already registered') ||
+              msg.contains('user_already_exists')) {
+            _error =
+                'That address already has an account. Switch to sign in.';
+          } else if (msg.contains('password') &&
+              (msg.contains('weak') || msg.contains('least'))) {
+            _error = 'Use a stronger password and try again.';
+          } else if (msg.contains('rate_limit') || msg.contains('429')) {
+            _error = 'Too many attempts. Wait a bit and try again.';
+          } else {
+            _error = _creating
+                ? 'Could not create that account.\n\n$e'
+                : 'Could not sign in.\n\n$e';
+          }
+        });
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<void> _verify() async {
+  Future<void> _oauth(_Provider p) async {
     setState(() {
       _busy = true;
       _error = null;
+      _notice = null;
     });
+
     try {
-      await SwarmApi.instance.verifyCode(_email.text, _code.text);
-      if (mounted) widget.onIn();
+      await SwarmApi.instance.signInWith(p.provider);
+
+      // On web the page normally navigates away. On mobile the session comes
+      // back through the configured deep link and the root handles it.
+      if (mounted) setState(() => _busy = false);
     } catch (e) {
       if (mounted) {
-        setState(() => _error = 'That did not match. Paste the code, or the entire '
-            'link from the mail — both expire after an hour, and clicking the link '
-            'in your mail app spends it.\n\n$e');
+        setState(() {
+          _busy = false;
+          // A provider that is in this list but not switched on in the
+          // dashboard fails here, and the message says which half is missing
+          // — otherwise it reads as "the app is broken" rather than "that
+          // door was never unlocked".
+          final msg = e.toString().toLowerCase();
+          _error = msg.contains('not enabled') ||
+                  msg.contains('unsupported') ||
+                  msg.contains('provider')
+              ? '${p.label} is not switched on for this project yet.\n\n'
+                  'Enable it in Supabase → Authentication → Providers, '
+                  'or use your college email and a password below.'
+              : '${p.label} would not open.\n\n$e';
+        });
+      }
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+
+    if (email.isEmpty) {
+      setState(() {
+        _notice = null;
+        _error = 'Enter your college email first.';
+      });
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+      _notice = null;
+    });
+
+    try {
+      await SwarmApi.instance.sendPasswordReset(email);
+
+      if (mounted) {
+        setState(() {
+          _notice =
+              'Password reset sent to $email. Open the recovery email to set '
+              'a new password.';
+        });
+      }
+    } on CampusEmailRejected {
+      if (mounted) {
+        setState(() {
+          _error =
+              'The Swarm is one campus only. Use your college address — the '
+              'domain is the whole door.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString().toLowerCase();
+        setState(() {
+          // A project with no SMTP configured answers this with a 500 and
+          // "Error sending recovery email". That is not a bug in the app and
+          // retrying will never fix it, so say the true thing instead of
+          // showing a stack trace to someone who is just locked out.
+          _error = msg.contains('error sending') ||
+                  msg.contains('unexpected_failure') ||
+                  msg.contains('500')
+              ? 'Password recovery needs an email server, and this project '
+                  'does not have one yet.\n\n'
+                  'Nothing you do here will send it. Make a new account with '
+                  'the address you want — signing up takes no email at all.'
+              : msg.contains('rate') || msg.contains('429')
+                  ? 'Too many attempts. Wait a minute and try again.'
+                  : 'Could not send the password reset.\n\n$e';
+        });
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _toggleMode() {
+    if (_busy) return;
+
+    setState(() {
+      _mode = _creating ? _AuthMode.signIn : _AuthMode.signUp;
+      _password.clear();
+      _error = null;
+      _notice = null;
+      _obscurePassword = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final onCode = _step == _Step.code;
-
     return Scaffold(
       backgroundColor: Swarm.abyss,
       body: Stack(
@@ -103,73 +293,130 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _pulse,
-              builder: (_, __) => CustomPaint(painter: _GatePainter(_pulse.value)),
+              builder: (_, __) =>
+                  CustomPaint(painter: _GatePainter(_pulse.value)),
             ),
           ),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 30),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 30),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 360),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('AWAKE EVERY NIGHT',
+                  child: AutofillGroup(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'AWAKE EVERY NIGHT',
                           textAlign: TextAlign.center,
-                          style: Swarm.data(size: 9.5, color: Swarm.murk, tracking: 4)),
-                      const SizedBox(height: 14),
-                      Text('THE SWARM',
-                          textAlign: TextAlign.center,
-                          style: Swarm.display(size: 44, tracking: -1.6)),
-                      const SizedBox(height: 14),
-                      Text(
-                        onCode
-                            ? 'Paste the code for ${_email.text.trim()} — or the whole '
-                                'link from the mail, either works. Both last one hour, '
-                                'and opening the link in your mail app spends it.'
-                            : 'One campus, no names, nothing kept. Your college address '
-                                'is the only thing we check, and the only thing we store.',
-                        textAlign: TextAlign.center,
-                        style: Swarm.voice(size: 14.5, color: Swarm.fog),
-                      ),
-                      const SizedBox(height: 26),
-                      if (!onCode) _emailField() else _codeField(),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        Text(_error!,
-                            textAlign: TextAlign.center,
-                            style: Swarm.voice(size: 12.8, color: Swarm.rogue)),
-                      ],
-                      const SizedBox(height: 14),
-                      _button(
-                        onCode ? 'Enter the dark' : 'Send me a code',
-                        onCode ? _verify : _send,
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: _busy
-                            ? null
-                            : () => setState(() {
-                                  _step = onCode ? _Step.email : _Step.code;
-                                  _code.clear();
-                                  _error = null;
-                                }),
-                        child: Text(
-                          onCode ? 'Use a different address' : 'I already have a code',
-                          style: Swarm.data(size: 9.5, color: Swarm.murk, tracking: 1.6),
+                          style: Swarm.data(
+                            size: 9.5,
+                            color: Swarm.murk,
+                            tracking: 4,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'We store your address to prove you go here, and nothing else. '
-                        'No name, no photo, no contacts, no history. Whispers are deleted '
-                        'within the minute they die.',
-                        textAlign: TextAlign.center,
-                        style: Swarm.voice(size: 11.8, color: Swarm.murk),
-                      ),
-                    ],
+                        const SizedBox(height: 14),
+                        Text(
+                          'THE SWARM',
+                          textAlign: TextAlign.center,
+                          style: Swarm.display(size: 44, tracking: -1.6),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          _creating
+                              ? 'Create an account with your college email and '
+                                  'a password. Your campus domain is still the '
+                                  'membership test.'
+                              : 'One campus, no names. Use a provider above, or your '
+                                  'college email and a password.',
+                          textAlign: TextAlign.center,
+                          style: Swarm.voice(size: 14.5, color: Swarm.fog),
+                        ),
+                        const SizedBox(height: 26),
+                        _googleButton(),
+                        if (_Provider.rest.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              for (final p in _Provider.rest) ...[
+                                Expanded(child: _providerButton(p)),
+                                if (p != _Provider.rest.last)
+                                  const SizedBox(width: 10),
+                              ],
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        _or(),
+                        const SizedBox(height: 18),
+                        _emailField(),
+                        const SizedBox(height: 12),
+                        _passwordField(),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style:
+                                Swarm.voice(size: 12.8, color: Swarm.rogue),
+                          ),
+                        ],
+                        if (_notice != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _notice!,
+                            textAlign: TextAlign.center,
+                            style:
+                                Swarm.voice(size: 12.8, color: Swarm.fog),
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        _button(
+                          _creating ? 'Create account' : 'Enter the dark',
+                          _submit,
+                        ),
+                        if (!_creating) ...[
+                          const SizedBox(height: 4),
+                          TextButton(
+                            onPressed: _busy ? null : _forgotPassword,
+                            child: Text(
+                              'FORGOT PASSWORD?',
+                              style: Swarm.data(
+                                size: 9.5,
+                                color: Swarm.murk,
+                                tracking: 1.6,
+                              ),
+                            ),
+                          ),
+                        ],
+                        TextButton(
+                          onPressed: _busy ? null : _toggleMode,
+                          child: Text(
+                            _creating
+                                ? 'ALREADY HAVE AN ACCOUNT? SIGN IN'
+                                : 'NEW HERE? CREATE AN ACCOUNT',
+                            textAlign: TextAlign.center,
+                            style: Swarm.data(
+                              size: 9.5,
+                              color: Swarm.murk,
+                              tracking: 1.35,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          'We keep your campus address for membership. Your '
+                          'password is handled by Supabase Auth and is never '
+                          'stored by this screen. No name, photo, contacts, or '
+                          'history are required here.',
+                          textAlign: TextAlign.center,
+                          style: Swarm.voice(size: 11.8, color: Swarm.murk),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -180,31 +427,110 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
     );
   }
 
+  /// The secondary doors. Icon and word only — a row of full-width buttons
+  /// turns a sign-in screen into a menu, and the point of this screen is that
+  /// getting in is not a decision worth deliberating over.
+  Widget _providerButton(_Provider p) => GestureDetector(
+        onTap: _busy ? null : () => _oauth(p),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            color: Swarm.foam.withValues(alpha: .04),
+            border: Border.all(color: Swarm.line),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(p.icon, size: 15, color: Swarm.fog),
+              const SizedBox(width: 7),
+              Text(
+                p.label.toUpperCase(),
+                style: Swarm.data(size: 9, color: Swarm.fog, tracking: 1.2),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _googleButton() => GestureDetector(
+        onTap: _busy ? null : () => _oauth(_Provider.google),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            color: Swarm.foam.withValues(alpha: .05),
+            border: Border.all(color: Swarm.line),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const _GoogleMark(),
+              const SizedBox(width: 11),
+              Text(
+                'CONTINUE WITH GOOGLE',
+                style: Swarm.data(size: 10.5, color: Swarm.fog, tracking: 2),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  Widget _or() => Row(
+        children: [
+          Expanded(child: Container(height: 1, color: Swarm.line)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              'OR',
+              style: Swarm.data(size: 9, color: Swarm.murk, tracking: 2),
+            ),
+          ),
+          Expanded(child: Container(height: 1, color: Swarm.line)),
+        ],
+      );
+
   Widget _emailField() => TextField(
         controller: _email,
         autofocus: true,
         keyboardType: TextInputType.emailAddress,
         autofillHints: const [AutofillHints.email],
-        textInputAction: TextInputAction.go,
-        onSubmitted: (_) => _busy ? null : _send(),
+        textInputAction: TextInputAction.next,
         style: Swarm.voice(size: 16),
         cursorColor: Swarm.plankton,
         decoration: _dec('you@yourcollege.edu'),
       );
 
-  Widget _codeField() => TextField(
-        controller: _code,
-        autofocus: true,
-        keyboardType: TextInputType.text,
-
-        textAlign: TextAlign.center,
-        textInputAction: TextInputAction.go,
-        onSubmitted: (_) => _busy ? null : _verify(),
-        maxLines: 2,
-        minLines: 1,
-        style: Swarm.data(size: 15, color: Swarm.foam, weight: FontWeight.w700, tracking: 2),
+  Widget _passwordField() => TextField(
+        controller: _password,
+        obscureText: _obscurePassword,
+        enableSuggestions: false,
+        autocorrect: false,
+        autofillHints: [
+          _creating ? AutofillHints.newPassword : AutofillHints.password,
+        ],
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) {
+          if (!_busy) _submit();
+        },
+        style: Swarm.voice(size: 16),
         cursorColor: Swarm.plankton,
-        decoration: _dec('paste the code, or the whole link').copyWith(counterText: ''),
+        decoration: _dec(_creating ? 'create a password' : 'password').copyWith(
+          suffixIcon: IconButton(
+            onPressed: _busy
+                ? null
+                : () => setState(
+                      () => _obscurePassword = !_obscurePassword,
+                    ),
+            icon: Icon(
+              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+              size: 18,
+              color: Swarm.murk,
+            ),
+          ),
+        ),
       );
 
   InputDecoration _dec(String hint) => InputDecoration(
@@ -212,7 +538,8 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
         hintStyle: Swarm.voice(size: 16, color: Swarm.murk),
         filled: true,
         fillColor: const Color(0xB3050A12),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         border: _border(Swarm.line),
         enabledBorder: _border(Swarm.line),
         focusedBorder: _border(Swarm.plankton.withValues(alpha: .5)),
@@ -232,18 +559,76 @@ class _GateScreenState extends State<GateScreen> with SingleTickerProviderStateM
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(13),
             color: Swarm.plankton.withValues(alpha: _busy ? .05 : .12),
-            border: Border.all(color: Swarm.plankton.withValues(alpha: _busy ? .2 : .45)),
+            border: Border.all(
+              color: Swarm.plankton.withValues(alpha: _busy ? .2 : .45),
+            ),
           ),
           child: _busy
               ? const SizedBox(
                   width: 15,
                   height: 15,
-                  child: CircularProgressIndicator(strokeWidth: 1.6, color: Swarm.plankton),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.6,
+                    color: Swarm.plankton,
+                  ),
                 )
-              : Text(label.toUpperCase(),
-                  style: Swarm.data(size: 10.5, color: Swarm.plankton, tracking: 2.6)),
+              : Text(
+                  label.toUpperCase(),
+                  style: Swarm.data(
+                    size: 10.5,
+                    color: Swarm.plankton,
+                    tracking: 2.6,
+                  ),
+                ),
         ),
       );
+}
+
+/// Google's mark, drawn rather than fetched: one more asset is one more thing
+/// that can fail to load on a dark screen at the moment someone is deciding
+/// whether this app is real.
+class _GoogleMark extends StatelessWidget {
+  const _GoogleMark();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 15,
+        height: 15,
+        child: CustomPaint(painter: _GPainter()),
+      );
+}
+
+class _GPainter extends CustomPainter {
+  static const _blue = Color(0xFF4285F4);
+  static const _green = Color(0xFF34A853);
+  static const _yellow = Color(0xFFFBBC05);
+  static const _red = Color(0xFFEA4335);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = Offset.zero & size;
+    final stroke = size.width * .27;
+    final arc = Rect.fromCircle(
+      center: r.center,
+      radius: (size.width - stroke) / 2,
+    );
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+
+    // Four quadrants, then the bar that turns the ring into a G.
+    canvas.drawArc(arc, -0.45, 1.30, false, p..color = _red);
+    canvas.drawArc(arc, 0.85, 1.55, false, p..color = _yellow);
+    canvas.drawArc(arc, 2.40, 1.55, false, p..color = _green);
+    canvas.drawArc(arc, 3.95, 1.50, false, p..color = _blue);
+    canvas.drawRect(
+      Rect.fromLTRB(r.center.dx, r.center.dy - stroke / 2, r.right, r.center.dy + stroke / 2),
+      Paint()..color = _blue,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GPainter old) => false;
 }
 
 /// A slow sweep behind the door, so the first screen already shows what the

@@ -56,6 +56,12 @@ Future<void> _sheet(BuildContext context, Widget Function(BuildContext) body) {
   );
 }
 
+/// The same shell, for sheets that live in another file. Rooms and chat are
+/// big enough to want their own, and a second copy of this chrome would be a
+/// second thing to keep in sync.
+Future<void> swarmSheet(BuildContext context, Widget Function(BuildContext) body) =>
+    _sheet(context, body);
+
 Widget _title(String s) => Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(s.toUpperCase(),
